@@ -18,6 +18,7 @@ from app.db.models import Tag
 class TagPanel(QWidget):
     def __init__(self) -> None:
         super().__init__()
+        self.setObjectName("tagPanel")
         self._build_ui()
 
     def _build_ui(self) -> None:

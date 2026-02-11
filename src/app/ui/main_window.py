@@ -17,8 +17,11 @@ from PySide6.QtWidgets import (
     QSplitter,
     QStatusBar,
     QToolBar,
+    QWidget,
+    QVBoxLayout,
+    QMenu,
 )
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QAction
 
 from app.config import AppConfig
 from app.core.search import SearchQuery
@@ -43,6 +46,7 @@ class MainWindow(QMainWindow):
         self._build_ui()
 
     def _build_ui(self) -> None:
+        self._build_menu()
         toolbar = QToolBar("Main")
         self.addToolBar(toolbar)
 
@@ -114,14 +118,22 @@ class MainWindow(QMainWindow):
 
         splitter = QSplitter()
         self.tag_panel = TagPanel()
-        self.browser_view = FileBrowserView()
         self.detail_panel = DetailPanel()
-        splitter.addWidget(self.tag_panel)
+        self.browser_view = FileBrowserView()
+
+        side_panel = QWidget()
+        side_layout = QVBoxLayout()
+        side_layout.setContentsMargins(0, 0, 0, 0)
+        side_layout.setSpacing(8)
+        side_layout.addWidget(self.tag_panel)
+        side_layout.addWidget(self.detail_panel)
+        side_panel.setLayout(side_layout)
+        side_panel.setObjectName("sidePanel")
+
+        splitter.addWidget(side_panel)
         splitter.addWidget(self.browser_view)
-        splitter.addWidget(self.detail_panel)
         splitter.setStretchFactor(1, 1)
-        splitter.setStretchFactor(2, 0)
-        splitter.setCollapsible(2, False)
+        splitter.setCollapsible(0, False)
 
         self.browser_view.file_selected.connect(self._on_file_selected)
         self.browser_view.selection_changed.connect(self._on_selection_count)
@@ -144,6 +156,8 @@ class MainWindow(QMainWindow):
 
         self.selection_label = QLabel("Selected files: 0")
         self.status_bar.addPermanentWidget(self.selection_label)
+
+        self._apply_theme()
 
         self._load_initial_files()
         self._load_tags()
@@ -423,6 +437,186 @@ class MainWindow(QMainWindow):
             on_change=self.controller.handle_file_changed,
             on_delete=self.controller.handle_file_deleted,
         )
+
+    def _apply_theme(self) -> None:
+        self._apply_theme_preset("gray")
+
+    def _apply_theme_preset(self, theme_id: str) -> None:
+        if theme_id == "night":
+            self._apply_night_theme()
+            return
+        self._apply_gray_theme()
+
+    def _apply_gray_theme(self) -> None:
+        self.setStyleSheet(
+            """
+            QMainWindow {
+                background-color: #f2f4f7;
+            }
+            QMenuBar {
+                background: #ffffff;
+                border-bottom: 1px solid #e0e5ec;
+            }
+            QMenuBar::item:selected {
+                background: #eef2f7;
+            }
+            QMenu {
+                background: #ffffff;
+                border: 1px solid #e0e5ec;
+            }
+            QMenu::item:selected {
+                background: #dbe7ff;
+            }
+            QToolBar {
+                background: #ffffff;
+                border: none;
+                padding: 6px;
+                spacing: 8px;
+            }
+            QToolBar QLineEdit,
+            QToolBar QComboBox {
+                background: #f6f7f9;
+                border: 1px solid #d6dbe3;
+                border-radius: 6px;
+                padding: 4px 6px;
+                min-height: 24px;
+            }
+            QToolBar QPushButton {
+                background: #ffffff;
+                border: 1px solid #d6dbe3;
+                border-radius: 6px;
+                padding: 4px 10px;
+            }
+            QToolBar QPushButton:hover {
+                background: #eef2f7;
+            }
+            #sidePanel {
+                background: #ffffff;
+                border: 1px solid #e0e5ec;
+                border-radius: 8px;
+                padding: 8px;
+            }
+            #tagPanel,
+            #detailPanel {
+                background: #ffffff;
+            }
+            QStatusBar {
+                background: #ffffff;
+                border-top: 1px solid #e0e5ec;
+            }
+            QListWidget,
+            QTreeWidget {
+                background: #ffffff;
+                border: 1px solid #e0e5ec;
+                border-radius: 6px;
+            }
+            QListWidget::item:selected,
+            QTreeWidget::item:selected {
+                background: #dbe7ff;
+                color: #1f2937;
+            }
+            """
+        )
+
+    def _apply_night_theme(self) -> None:
+        self.setStyleSheet(
+            """
+            QMainWindow {
+                background-color: #0f1420;
+                color: #e5e7eb;
+            }
+            QMenuBar {
+                background: #111827;
+                color: #e5e7eb;
+                border-bottom: 1px solid #1f2937;
+            }
+            QMenuBar::item:selected {
+                background: #1f2937;
+            }
+            QMenu {
+                background: #111827;
+                color: #e5e7eb;
+                border: 1px solid #1f2937;
+            }
+            QMenu::item:selected {
+                background: #1f2937;
+            }
+            QToolBar {
+                background: #111827;
+                border: none;
+                padding: 6px;
+                spacing: 8px;
+            }
+            QToolBar QLineEdit,
+            QToolBar QComboBox {
+                background: #0b1220;
+                border: 1px solid #22314a;
+                border-radius: 6px;
+                padding: 4px 6px;
+                min-height: 24px;
+                color: #e5e7eb;
+            }
+            QToolBar QPushButton {
+                background: #0b1220;
+                color: #e5e7eb;
+                border: 1px solid #22314a;
+                border-radius: 6px;
+                padding: 4px 10px;
+            }
+            QToolBar QPushButton:hover {
+                background: #172136;
+            }
+            #sidePanel {
+                background: #111827;
+                border: 1px solid #1f2937;
+                border-radius: 8px;
+                padding: 8px;
+            }
+            #tagPanel,
+            #detailPanel {
+                background: #111827;
+                color: #e5e7eb;
+            }
+            QStatusBar {
+                background: #111827;
+                border-top: 1px solid #1f2937;
+                color: #e5e7eb;
+            }
+            QListWidget,
+            QTreeWidget {
+                background: #0b1220;
+                border: 1px solid #22314a;
+                border-radius: 6px;
+                color: #e5e7eb;
+            }
+            QListWidget::item:selected,
+            QTreeWidget::item:selected {
+                background: #1d4ed8;
+                color: #ffffff;
+            }
+            """
+        )
+
+    def _build_menu(self) -> None:
+        menu_bar = self.menuBar()
+
+        file_menu = menu_bar.addMenu("File")
+        tools_menu = menu_bar.addMenu("Tools")
+        theme_menu = QMenu("Theme", self)
+        about_menu = menu_bar.addMenu("About")
+
+        tools_menu.addMenu(theme_menu)
+
+        theme_gray = QAction("Gray", self)
+        theme_gray.triggered.connect(lambda: self._apply_theme_preset("gray"))
+        theme_night = QAction("Night Blue", self)
+        theme_night.triggered.connect(lambda: self._apply_theme_preset("night"))
+
+        theme_menu.addAction(theme_gray)
+        theme_menu.addAction(theme_night)
+
+        file_menu.addAction(QAction("Exit", self, triggered=self.close))
+        about_menu.addAction(QAction("About", self))
 
 
 class ScanWorker(QObject):

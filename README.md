@@ -20,3 +20,7 @@ You can also set these in a `.env` file. See `.env.example`.
 ## Usage Guide
 
 - `doc/usage_guide.md`
+
+## Architecture
+
+- `doc/ARCHITECTURE.md`

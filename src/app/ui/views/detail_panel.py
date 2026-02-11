@@ -14,6 +14,7 @@ from app.services.thumbnail_service import ThumbnailService
 class DetailPanel(QWidget):
     def __init__(self) -> None:
         super().__init__()
+        self.setObjectName("detailPanel")
         config = load_config()
         self._thumb_service = ThumbnailService(config.thumbs_dir)
         self._build_ui()
@@ -27,6 +28,7 @@ class DetailPanel(QWidget):
         self.selection_label = QLabel("")
         self.preview_label = QLabel("")
         self.setMinimumWidth(280)
+        self.setMinimumHeight(220)
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         self.title_label.setWordWrap(True)
         self.path_label.setWordWrap(True)
@@ -70,20 +72,17 @@ class DetailPanel(QWidget):
             self.preview_label.setPixmap(QPixmap())
             self.preview_label.setText("No preview")
             return
-        target = None
+        pixmap = None
         size = (self.preview_label.width(), self.preview_label.height())
         if file_type == "image":
-            target = self._thumb_service.generate_image_thumbnail(file_path, size)
+            pixmap = self._thumb_service.generate_image_thumbnail(file_path, size)
         elif file_type == "video":
-            target = self._thumb_service.generate_video_thumbnail(file_path, size)
-        if target is None:
+            pixmap = self._thumb_service.generate_video_thumbnail(file_path, size)
+        else:
+            pixmap = self._thumb_service.generate_shell_thumbnail(file_path, size)
+        if pixmap is None or pixmap.isNull():
             self.preview_label.setPixmap(QPixmap())
             self.preview_label.setText("No preview")
-            return
-        pixmap = QPixmap(str(target))
-        if pixmap.isNull():
-            self.preview_label.setPixmap(QPixmap())
-            self.preview_label.setText("Preview unavailable")
             return
         scaled = pixmap.scaled(
             self.preview_label.width(),
