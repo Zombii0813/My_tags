@@ -5,8 +5,8 @@ from pathlib import Path
 import os
 from typing import Iterable
 
-from app.utils.file_types import classify_file
-from app.utils.hashing import sha256_file
+from ..utils.file_types import classify_file
+from ..utils.hashing import sha256_file
 
 
 @dataclass(frozen=True)

@@ -11,7 +11,7 @@ from PIL import Image
 from PySide6.QtCore import QRunnable, QThreadPool
 from PySide6.QtGui import QPixmap, QPixmapCache
 
-from app.utils.windows_thumbnails import load_shell_thumbnail
+from ..utils.windows_thumbnails import load_shell_thumbnail
 
 
 @dataclass

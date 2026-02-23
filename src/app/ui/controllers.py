@@ -4,12 +4,12 @@ from dataclasses import dataclass
 from pathlib import Path
 import shutil
 
-from app.config import AppConfig
-from app.core.search import SearchQuery
-from app.core.tag_manager import TagSpec
-from app.db.repo import Repo
-from app.db.session import get_session
-from app.services.scan_service import ScanService
+from ..config import AppConfig
+from ..core.search import SearchQuery
+from ..core.tag_manager import TagSpec
+from ..db.repo import Repo
+from ..db.session import get_session
+from ..services.scan_service import ScanService
 
 
 @dataclass
@@ -153,7 +153,7 @@ class AppController:
             repo = Repo(session)
             files = repo.get_files_by_ids(file_ids)
             used_targets: set[str] = set()
-            from app.core.indexer import build_file_meta
+            from ..core.indexer import build_file_meta
 
             for file_row in files:
                 try:
@@ -197,7 +197,7 @@ class AppController:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(str(source), str(target))
                     if self._within_workspace(target, workspace_root):
-                        from app.core.indexer import build_file_meta
+                        from ..core.indexer import build_file_meta
 
                         meta = build_file_meta(target)
                         repo.upsert_file(meta)
@@ -216,7 +216,7 @@ class AppController:
         session = get_session()
         try:
             repo = Repo(session)
-            from app.core.indexer import build_file_meta
+            from ..core.indexer import build_file_meta
 
             meta = build_file_meta(path)
             repo.upsert_file(meta)

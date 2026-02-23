@@ -6,8 +6,8 @@ from typing import Callable
 
 from sqlalchemy.orm import Session
 
-from app.core.indexer import build_file_meta_from_entry, iter_file_entries
-from app.db.repo import Repo
+from ..core.indexer import build_file_meta_from_entry, iter_file_entries
+from ..db.repo import Repo
 
 
 @dataclass

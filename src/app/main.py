@@ -4,9 +4,9 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
-from app.config import load_config
-from app.db.session import init_db
-from app.ui.main_window import MainWindow
+from .config import load_config
+from .db.session import init_db
+from .ui.main_window import MainWindow
 
 
 def main() -> int:

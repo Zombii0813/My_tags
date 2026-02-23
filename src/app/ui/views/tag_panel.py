@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.db.models import Tag
+from ...db.models import Tag
 
 
 class TagPanel(QWidget):

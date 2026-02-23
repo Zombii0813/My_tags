@@ -17,10 +17,10 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QIcon, QPixmap
 
-from app.core.search import SearchResult
-from app.db.models import File
-from app.services.thumbnail_service import ThumbnailService
-from app.config import load_config
+from ...core.search import SearchResult
+from ...db.models import File
+from ...services.thumbnail_service import ThumbnailService
+from ...config import load_config
 
 
 class FileBrowserView(QWidget):

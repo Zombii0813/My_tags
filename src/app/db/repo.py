@@ -7,10 +7,10 @@ from typing import Iterable
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app.core.indexer import FileMeta
-from app.core.search import SearchQuery, SearchResult
-from app.core.tag_manager import TagSpec
-from app.db.models import File, FileTag, Tag
+from ..core.indexer import FileMeta
+from ..core.search import SearchQuery, SearchResult
+from ..core.tag_manager import TagSpec
+from .models import File, FileTag, Tag
 
 
 @dataclass
@@ -107,7 +107,7 @@ class Repo:
         return list(self.session.execute(stmt).scalars())
 
     def get_files_by_ids(self, file_ids: Iterable[int]) -> list[File]:
-        file_ids = list(file_ids)
+        file_ids = [int(file_id) for file_id in file_ids]
         if not file_ids:
             return []
         stmt = select(File).where(File.id.in_(file_ids))

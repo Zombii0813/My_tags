@@ -23,13 +23,13 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QDesktopServices, QAction
 
-from app.config import AppConfig
-from app.core.search import SearchQuery
-from app.ui.controllers import AppController
-from app.ui.views.browser_view import FileBrowserView
-from app.ui.views.detail_panel import DetailPanel
-from app.ui.views.tag_panel import TagPanel
-from app.services.watch_service import WatchService
+from ..config import AppConfig
+from ..core.search import SearchQuery
+from .controllers import AppController
+from .views.browser_view import FileBrowserView
+from .views.detail_panel import DetailPanel
+from .views.tag_panel import TagPanel
+from ..services.watch_service import WatchService
 
 
 class MainWindow(QMainWindow):

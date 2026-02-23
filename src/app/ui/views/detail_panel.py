@@ -6,9 +6,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
 
-from app.config import load_config
-from app.db.models import File
-from app.services.thumbnail_service import ThumbnailService
+from ...config import load_config
+from ...db.models import File
+from ...services.thumbnail_service import ThumbnailService
 
 
 class DetailPanel(QWidget):
