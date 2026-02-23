@@ -160,6 +160,10 @@ class Repo:
             term = f"%{query.text}%"
             stmt = stmt.where(File.name.ilike(term))
 
+        if query.root:
+            root = query.root.rstrip("/\\") + "%"
+            stmt = stmt.where(File.path.like(root))
+
         if query.types:
             stmt = stmt.where(File.type.in_(query.types))
 

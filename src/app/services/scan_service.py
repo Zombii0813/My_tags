@@ -20,7 +20,12 @@ class ScanService:
         repo = Repo(self.session)
         paths_seen: set[str] = set()
         count = 0
-        path_to_id = {path: file_id for file_id, path in repo.list_file_paths()}
+        root_path = root.resolve()
+        path_to_id = {
+            path: file_id
+            for file_id, path in repo.list_file_paths()
+            if self._is_under_root(path, root_path)
+        }
         batch_size = 500
         for entry in iter_file_entries(root):
             path_str = entry.path
@@ -36,9 +41,19 @@ class ScanService:
 
         stale_ids = []
         for file_id, path in repo.list_file_paths():
+            if not self._is_under_root(path, root_path):
+                continue
             if path not in paths_seen:
                 stale_ids.append(int(file_id))
         if stale_ids:
             repo.delete_files(stale_ids)
         self.session.commit()
         return count
+
+    @staticmethod
+    def _is_under_root(path_value: str, root: Path) -> bool:
+        try:
+            Path(path_value).resolve().relative_to(root)
+            return True
+        except Exception:
+            return False

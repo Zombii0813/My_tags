@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QDesktopServices, QAction
 
-from ..config import AppConfig
+from ..config import AppConfig, workspace_db_path
 from ..core.search import SearchQuery
 from .controllers import AppController
 from .views.browser_view import FileBrowserView
@@ -82,7 +82,7 @@ class MainWindow(QMainWindow):
         self.sort_filter.addItem("Size", ("size", True))
         self.sort_filter.currentIndexChanged.connect(self._on_filter_changed)
 
-        scan_button = QPushButton("Scan")
+        scan_button = QPushButton("Refresh")
         scan_button.clicked.connect(self._on_scan)
 
         delete_button = QPushButton("Delete")
@@ -90,6 +90,9 @@ class MainWindow(QMainWindow):
 
         workspace_button = QPushButton("Workspace")
         workspace_button.clicked.connect(self._on_choose_workspace)
+
+        clean_button = QPushButton("Clean DBs")
+        clean_button.clicked.connect(self._on_clean_databases)
 
         move_button = QPushButton("Move")
         move_button.clicked.connect(self._on_move_files)
@@ -109,6 +112,7 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.type_filter)
         toolbar.addWidget(self.sort_filter)
         toolbar.addWidget(workspace_button)
+        toolbar.addWidget(clean_button)
         toolbar.addWidget(scan_button)
         toolbar.addWidget(delete_button)
         toolbar.addWidget(move_button)
@@ -174,9 +178,28 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Workspace", "Set MYTAGS_WORKSPACE first.")
             return
 
+        if self.config.db_path != workspace_db_path(
+            self.config.data_dir, self.active_workspace
+        ):
+            self.config = AppConfig(
+                data_dir=self.config.data_dir,
+                db_path=workspace_db_path(self.config.data_dir, self.active_workspace),
+                thumbs_dir=self.config.thumbs_dir,
+                default_workspace=self.active_workspace,
+            )
+            from ..db.session import init_db
+
+            init_db(self.config.db_path)
+            self.controller = AppController(self.config)
+
         root = self.active_workspace
-        if self._scan_thread is not None and self._scan_thread.isRunning():
-            return
+        if self._scan_thread is not None:
+            try:
+                if self._scan_thread.isRunning():
+                    return
+            except RuntimeError:
+                self._scan_thread = None
+                self._scan_worker = None
 
         self.statusBar().showMessage("Scanning...")
         self.progress.setRange(0, 0)
@@ -207,6 +230,7 @@ class MainWindow(QMainWindow):
         sort_by, sort_desc = self._selected_sort()
         query = SearchQuery(
             text=text if text else None,
+            root=str(self.active_workspace) if self.active_workspace else None,
             types=types,
             sort_by=sort_by if sort_by else None,
             sort_desc=sort_desc,
@@ -239,6 +263,7 @@ class MainWindow(QMainWindow):
         sort_by, sort_desc = self._selected_sort()
         query = SearchQuery(
             text=text if text else None,
+            root=str(self.active_workspace) if self.active_workspace else None,
             types=types,
             sort_by=sort_by if sort_by else None,
             sort_desc=sort_desc,
@@ -270,6 +295,7 @@ class MainWindow(QMainWindow):
         query = SearchQuery(
             tags=tuple(tag_names),
             match_all_tags=match_all,
+            root=str(self.active_workspace) if self.active_workspace else None,
             types=types,
             sort_by=sort_by if sort_by else None,
             sort_desc=sort_desc,
@@ -325,8 +351,47 @@ class MainWindow(QMainWindow):
         if not selected:
             return
         self.active_workspace = Path(selected)
+        self.config = AppConfig(
+            data_dir=self.config.data_dir,
+            db_path=workspace_db_path(self.config.data_dir, self.active_workspace),
+            thumbs_dir=self.config.thumbs_dir,
+            default_workspace=self.active_workspace,
+        )
+        from ..db.session import init_db
+
+        init_db(self.config.db_path)
+        self.controller = AppController(self.config)
         self.statusBar().showMessage(f"Workspace: {self.active_workspace}")
         self._restart_watch()
+        self._on_scan()
+
+    def _on_clean_databases(self) -> None:
+        if not self.config.data_dir:
+            return
+        confirm = QMessageBox.question(
+            self,
+            "Clean Databases",
+            "Delete all workspace database files except the current one?",
+        )
+        if confirm != QMessageBox.Yes:
+            return
+        workspace_dir = self.config.data_dir / "workspaces"
+        if not workspace_dir.exists():
+            self.statusBar().showMessage("No workspace databases found")
+            return
+        current_db = None
+        if self.active_workspace is not None:
+            current_db = workspace_db_path(self.config.data_dir, self.active_workspace)
+        deleted = 0
+        for db_file in workspace_dir.glob("*.db"):
+            if current_db is not None and db_file.resolve() == current_db.resolve():
+                continue
+            try:
+                db_file.unlink()
+                deleted += 1
+            except Exception:
+                continue
+        self.statusBar().showMessage(f"Removed {deleted} workspace databases")
 
     def _on_move_files(self) -> None:
         file_ids = self.browser_view.selected_file_ids()

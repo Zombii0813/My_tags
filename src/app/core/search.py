@@ -7,6 +7,7 @@ from typing import Iterable
 @dataclass(frozen=True)
 class SearchQuery:
     text: str | None = None
+    root: str | None = None
     types: tuple[str, ...] = ()
     tags: tuple[str, ...] = ()
     match_all_tags: bool = False
