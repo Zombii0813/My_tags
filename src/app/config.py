@@ -23,6 +23,26 @@ def _env_path(name: str) -> Path | None:
     return Path(value).expanduser().resolve()
 
 
+def _load_last_workspace(base_dir: Path) -> Path | None:
+    last_file = base_dir / "last_workspace.txt"
+    try:
+        value = last_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not value:
+        return None
+    return Path(value).expanduser().resolve()
+
+
+def save_last_workspace(base_dir: Path, workspace: Path) -> None:
+    last_file = base_dir / "last_workspace.txt"
+    try:
+        base_dir.mkdir(parents=True, exist_ok=True)
+        last_file.write_text(str(workspace.resolve()), encoding="utf-8")
+    except OSError:
+        return
+
+
 def workspace_db_path(base_dir: Path, workspace: Path) -> Path:
     digest = hashlib.sha1(str(workspace.resolve()).encode("utf-8")).hexdigest()
     return base_dir / "workspaces" / f"{digest}.db"
@@ -34,6 +54,10 @@ def load_config() -> AppConfig:
     if base_dir is None:
         base_dir = Path.home() / ".mytags"
 
+    default_workspace = _env_path("MYTAGS_WORKSPACE")
+    if default_workspace is None:
+        default_workspace = _load_last_workspace(base_dir)
+
     db_path = _env_path("MYTAGS_DB_PATH")
     if db_path is None:
         if default_workspace is not None:
@@ -44,8 +68,6 @@ def load_config() -> AppConfig:
     thumbs_dir = _env_path("MYTAGS_THUMBS_DIR")
     if thumbs_dir is None:
         thumbs_dir = base_dir / "thumbs"
-
-    default_workspace = _env_path("MYTAGS_WORKSPACE")
 
     return AppConfig(
         data_dir=base_dir,

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import cast
 
-from PySide6.QtCore import QObject, QThread, Signal, QUrl
+from PySide6.QtCore import QObject, QThread, Signal, QUrl, QSize, Qt
 from PySide6.QtWidgets import (
     QLabel,
     QFileDialog,
@@ -11,25 +11,30 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QProgressBar,
-    QPushButton,
     QInputDialog,
-    QComboBox,
     QSplitter,
     QStatusBar,
     QToolBar,
+    QToolButton,
+    QButtonGroup,
+    QStyle,
     QWidget,
     QVBoxLayout,
+    QHBoxLayout,
     QMenu,
+    QFrame,
 )
 from PySide6.QtGui import QDesktopServices, QAction
 
-from ..config import AppConfig, workspace_db_path
+from ..config import AppConfig, workspace_db_path, save_last_workspace
 from ..core.search import SearchQuery
 from .controllers import AppController
 from .views.browser_view import FileBrowserView
 from .views.detail_panel import DetailPanel
 from .views.tag_panel import TagPanel
 from ..services.watch_service import WatchService
+from .resources import get_icon, set_theme
+from .resources.styles import get_stylesheet
 
 
 class MainWindow(QMainWindow):
@@ -41,106 +46,231 @@ class MainWindow(QMainWindow):
         self._scan_thread: QThread | None = None
         self._scan_worker: ScanWorker | None = None
         self._watch_service = WatchService()
+        self._view_mode_value = "list"
+        self._layout_mode_value = "all"
+        self._type_filter_value = ""
+        self._sort_filter_value: tuple[str | None, bool] = ("name", False)
+        self._current_theme = "light"
+        
         self.setWindowTitle("My Tags")
-        self.resize(1200, 800)
+        self.resize(1400, 900)
         self._build_ui()
 
     def _build_ui(self) -> None:
+        """Build the modern, sleek UI."""
         self._build_menu()
-        toolbar = QToolBar("Main")
+        
+        # Create modern toolbar with search
+        toolbar = self._build_toolbar()
         self.addToolBar(toolbar)
 
+        # Create main content area
+        content = self._build_content_area()
+        self.setCentralWidget(content)
+
+        # Create status bar
+        self._build_status_bar()
+
+        # Apply theme
+        self._apply_theme_preset("light")
+
+        # Load initial data
+        if self.active_workspace is not None:
+            self.config = AppConfig(
+                data_dir=self.config.data_dir,
+                db_path=workspace_db_path(self.config.data_dir, self.active_workspace),
+                thumbs_dir=self.config.thumbs_dir,
+                default_workspace=self.active_workspace,
+            )
+            from ..db.session import init_db
+
+            init_db(self.config.db_path)
+            self.controller = AppController(self.config)
+        self._load_initial_files()
+        self._load_tags()
+        self._refresh_workspace_ui()
+
+    def _build_toolbar(self) -> QToolBar:
+        """Build a modern, organized toolbar."""
+        toolbar = QToolBar("Main")
+        toolbar.setMovable(False)
+        toolbar.setIconSize(QSize(20, 20))
+
+        # Left side: Search with icon
+        search_container = QFrame()
+        search_container.setObjectName("searchContainer")
+        search_layout = QHBoxLayout(search_container)
+        search_layout.setContentsMargins(0, 0, 0, 0)
+        search_layout.setSpacing(8)
+
+        search_icon = QLabel("🔍")
+        search_icon.setStyleSheet("font-size: 14px;")
+        search_layout.addWidget(search_icon)
+
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search files...")
+        self.search_input.setPlaceholderText("Search files, tags...")
+        self.search_input.setMinimumWidth(280)
         self.search_input.returnPressed.connect(self._on_search)
+        self.search_input.textChanged.connect(self._on_search_text_changed)
+        search_layout.addWidget(self.search_input)
 
-        self.type_filter = QComboBox()
-        self.type_filter.addItem("All", "")
-        self.type_filter.addItem("Images", "image")
-        self.type_filter.addItem("Videos", "video")
-        self.type_filter.addItem("Docs", "doc")
-        self.type_filter.addItem("Audio", "audio")
-        self.type_filter.addItem("Other", "other")
-        self.type_filter.currentIndexChanged.connect(self._on_filter_changed)
+        toolbar.addWidget(search_container)
+        toolbar.addSeparator()
 
-        self.view_mode = QComboBox()
-        self.view_mode.addItem("List", "list")
-        self.view_mode.addItem("Grid", "grid")
-        self.view_mode.currentIndexChanged.connect(self._on_view_mode_changed)
+        # View mode buttons
+        toolbar.addWidget(QLabel("View:"))
+        self.view_group = QButtonGroup(self)
+        self.view_group.setExclusive(True)
+        
+        self.list_btn = self._create_tool_button("list", "List view", True)
+        self.grid_btn = self._create_tool_button("grid", "Grid view", True)
+        self.view_group.addButton(self.list_btn)
+        self.view_group.addButton(self.grid_btn)
+        self.list_btn.clicked.connect(lambda: self._set_view_mode("list"))
+        self.grid_btn.clicked.connect(lambda: self._set_view_mode("grid"))
+        toolbar.addWidget(self.list_btn)
+        toolbar.addWidget(self.grid_btn)
+        
+        toolbar.addSeparator()
 
-        self.layout_mode = QComboBox()
-        self.layout_mode.addItem("All", "all")
-        self.layout_mode.addItem("Folders", "folders")
-        self.layout_mode.currentIndexChanged.connect(self._on_layout_mode_changed)
+        # Layout mode buttons
+        toolbar.addWidget(QLabel("Layout:"))
+        self.layout_group = QButtonGroup(self)
+        self.layout_group.setExclusive(True)
+        
+        self.all_btn = self._create_tool_button("home", "All files", True)
+        self.folder_btn = self._create_tool_button("folder", "Folders", True)
+        self.layout_group.addButton(self.all_btn)
+        self.layout_group.addButton(self.folder_btn)
+        self.all_btn.clicked.connect(lambda: self._set_layout_mode("all"))
+        self.folder_btn.clicked.connect(lambda: self._set_layout_mode("folders"))
+        toolbar.addWidget(self.all_btn)
+        toolbar.addWidget(self.folder_btn)
+        
+        toolbar.addSeparator()
 
-        self.sort_filter = QComboBox()
-        self.sort_filter.addItem("Name (Asc)", ("name", False))
-        self.sort_filter.addItem("Name (Desc)", ("name", True))
-        self.sort_filter.addItem("Modified", ("updated_at", True))
-        self.sort_filter.addItem("Modified", ("modified_at", True))
-        self.sort_filter.addItem("Updated", ("updated_at", True))
-        self.sort_filter.addItem("Size", ("size", True))
-        self.sort_filter.currentIndexChanged.connect(self._on_filter_changed)
+        # Type filter buttons
+        toolbar.addWidget(QLabel("Filter:"))
+        self.type_group = QButtonGroup(self)
+        self.type_group.setExclusive(True)
+        
+        self.type_all_btn = self._create_tool_button("clear", "All types", True)
+        self.type_image_btn = self._create_tool_button("image", "Images", True)
+        self.type_video_btn = self._create_tool_button("video", "Videos", True)
+        self.type_doc_btn = self._create_tool_button("document", "Documents", True)
+        self.type_audio_btn = self._create_tool_button("audio", "Audio", True)
+        self.type_other_btn = self._create_tool_button("more", "Other", True)
+        
+        for btn in [self.type_all_btn, self.type_image_btn, self.type_video_btn,
+                    self.type_doc_btn, self.type_audio_btn, self.type_other_btn]:
+            self.type_group.addButton(btn)
+            toolbar.addWidget(btn)
+        
+        self.type_all_btn.clicked.connect(lambda: self._set_type_filter(""))
+        self.type_image_btn.clicked.connect(lambda: self._set_type_filter("image"))
+        self.type_video_btn.clicked.connect(lambda: self._set_type_filter("video"))
+        self.type_doc_btn.clicked.connect(lambda: self._set_type_filter("doc"))
+        self.type_audio_btn.clicked.connect(lambda: self._set_type_filter("audio"))
+        self.type_other_btn.clicked.connect(lambda: self._set_type_filter("other"))
+        
+        toolbar.addSeparator()
 
-        scan_button = QPushButton("Refresh")
-        scan_button.clicked.connect(self._on_scan)
+        # Sort buttons
+        toolbar.addWidget(QLabel("Sort:"))
+        self.sort_group = QButtonGroup(self)
+        self.sort_group.setExclusive(True)
+        
+        self.sort_name_asc = self._create_tool_button("arrow_up", "Name ascending", True)
+        self.sort_name_desc = self._create_tool_button("arrow_down", "Name descending", True)
+        self.sort_modified = self._create_tool_button("clock", "Modified time", True)
+        self.sort_size = self._create_tool_button("trash", "Size", True)
+        
+        for btn in [self.sort_name_asc, self.sort_name_desc, self.sort_modified, self.sort_size]:
+            self.sort_group.addButton(btn)
+            toolbar.addWidget(btn)
+        
+        self.sort_name_asc.clicked.connect(lambda: self._set_sort_filter("name", False))
+        self.sort_name_desc.clicked.connect(lambda: self._set_sort_filter("name", True))
+        self.sort_modified.clicked.connect(lambda: self._set_sort_filter("modified_at", True))
+        self.sort_size.clicked.connect(lambda: self._set_sort_filter("size", True))
 
-        delete_button = QPushButton("Delete")
-        delete_button.clicked.connect(self._on_delete_files)
+        # Store references
+        self._icon_buttons = {
+            "view_list": self.list_btn,
+            "view_grid": self.grid_btn,
+            "layout_all": self.all_btn,
+            "layout_folders": self.folder_btn,
+            "type_all": self.type_all_btn,
+            "type_image": self.type_image_btn,
+            "type_video": self.type_video_btn,
+            "type_doc": self.type_doc_btn,
+            "type_audio": self.type_audio_btn,
+            "type_other": self.type_other_btn,
+            "sort_name_asc": self.sort_name_asc,
+            "sort_name_desc": self.sort_name_desc,
+            "sort_modified": self.sort_modified,
+            "sort_size": self.sort_size,
+        }
 
-        workspace_button = QPushButton("Workspace")
-        workspace_button.clicked.connect(self._on_choose_workspace)
+        self._sync_icon_buttons()
+        return toolbar
 
-        clean_button = QPushButton("Clean DBs")
-        clean_button.clicked.connect(self._on_clean_databases)
+    def _create_tool_button(self, icon_name: str, tooltip: str, checkable: bool = False) -> QToolButton:
+        """Create a modern tool button with custom icon."""
+        button = QToolButton()
+        button.setCheckable(checkable)
+        button.setIcon(get_icon(icon_name))
+        button.setToolTip(tooltip)
+        button.setAutoRaise(True)
+        button.setFixedSize(32, 32)
+        return button
 
-        move_button = QPushButton("Move")
-        move_button.clicked.connect(self._on_move_files)
-
-        copy_button = QPushButton("Copy")
-        copy_button.clicked.connect(self._on_copy_files)
-
-        open_folder_button = QPushButton("Open Folder")
-        open_folder_button.clicked.connect(self._on_open_folder)
-
-        open_file_button = QPushButton("Open File")
-        open_file_button.clicked.connect(self._on_open_file)
-
-        toolbar.addWidget(self.search_input)
-        toolbar.addWidget(self.view_mode)
-        toolbar.addWidget(self.layout_mode)
-        toolbar.addWidget(self.type_filter)
-        toolbar.addWidget(self.sort_filter)
-        toolbar.addWidget(workspace_button)
-        toolbar.addWidget(clean_button)
-        toolbar.addWidget(scan_button)
-        toolbar.addWidget(delete_button)
-        toolbar.addWidget(move_button)
-        toolbar.addWidget(copy_button)
-        toolbar.addWidget(open_folder_button)
-        toolbar.addWidget(open_file_button)
-
-        splitter = QSplitter()
+    def _build_content_area(self) -> QWidget:
+        """Build the main content area with splitter."""
+        # Create panels
         self.tag_panel = TagPanel()
         self.detail_panel = DetailPanel()
         self.browser_view = FileBrowserView()
 
+        # Create side panel with improved layout
         side_panel = QWidget()
+        side_panel.setObjectName("sidePanel")
         side_layout = QVBoxLayout()
         side_layout.setContentsMargins(0, 0, 0, 0)
-        side_layout.setSpacing(8)
+        side_layout.setSpacing(16)
+        
+        # Add section titles
+        tag_title = QLabel("🏷️ Tags")
+        tag_title.setObjectName("sectionTitle")
+        side_layout.addWidget(tag_title)
         side_layout.addWidget(self.tag_panel)
-        side_layout.addWidget(self.detail_panel)
+        
+        detail_title = QLabel("📄 Details")
+        detail_title.setObjectName("sectionTitle")
+        side_layout.addWidget(detail_title)
+        side_layout.addWidget(self.detail_panel, 1)
+        
         side_panel.setLayout(side_layout)
-        side_panel.setObjectName("sidePanel")
+        side_panel.setMaximumWidth(320)
+        side_panel.setMinimumWidth(260)
 
+        # Create main splitter
+        splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(side_panel)
         splitter.addWidget(self.browser_view)
         splitter.setStretchFactor(1, 1)
         splitter.setCollapsible(0, False)
+        splitter.setHandleWidth(4)
+        splitter.setSizes([300, 1100])
 
+        # Connect signals
         self.browser_view.file_selected.connect(self._on_file_selected)
         self.browser_view.selection_changed.connect(self._on_selection_count)
+        self.browser_view.delete_requested.connect(self._on_delete_files)
+        self.browser_view.move_requested.connect(self._on_move_files)
+        self.browser_view.copy_requested.connect(self._on_copy_files)
+        self.browser_view.open_folder_requested.connect(self._on_open_folder)
+        self.browser_view.open_file_requested.connect(self._on_open_file)
         self.tag_panel.add_button.clicked.connect(self._on_add_tag)
         self.tag_panel.delete_button.clicked.connect(self._on_delete_tag)
         self.tag_panel.apply_button.clicked.connect(self._on_apply_tags)
@@ -148,23 +278,96 @@ class MainWindow(QMainWindow):
         self.tag_panel.filter_button.clicked.connect(self._on_tag_filter_clicked)
         self.tag_panel.clear_filter_button.clicked.connect(self._on_clear_filter)
 
-        self.search_input.textChanged.connect(self._on_search_text_changed)
+        return splitter
 
-        self.setCentralWidget(splitter)
+    def _build_status_bar(self) -> None:
+        """Build the modern status bar."""
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
 
+        # Progress bar (hidden by default)
         self.progress = QProgressBar()
         self.progress.setVisible(False)
+        self.progress.setFixedWidth(120)
+        self.progress.setTextVisible(False)
         self.status_bar.addPermanentWidget(self.progress)
 
-        self.selection_label = QLabel("Selected files: 0")
+        # Selection counter
+        self.selection_label = QLabel("0 items selected")
+        self.selection_label.setStyleSheet("padding: 0 8px;")
         self.status_bar.addPermanentWidget(self.selection_label)
 
-        self._apply_theme()
+        # Workspace indicator
+        self.workspace_label = QLabel("No workspace")
+        self.workspace_label.setStyleSheet("padding: 0 8px; color: #64748b;")
+        self.status_bar.addWidget(self.workspace_label)
 
-        self._load_initial_files()
-        self._load_tags()
+    def _build_menu(self) -> None:
+        """Build the menu bar."""
+        menu_bar = self.menuBar()
+
+        file_menu = menu_bar.addMenu("File")
+        edit_menu = menu_bar.addMenu("Edit")
+        view_menu = menu_bar.addMenu("View")
+        tools_menu = menu_bar.addMenu("Tools")
+
+        # Theme submenu
+        theme_menu = QMenu("Theme", self)
+        view_menu.addMenu(theme_menu)
+
+        theme_light = QAction("☀️ Light", self)
+        theme_light.triggered.connect(lambda: self._apply_theme_preset("light"))
+        theme_dark = QAction("🌙 Dark", self)
+        theme_dark.triggered.connect(lambda: self._apply_theme_preset("dark"))
+        theme_midnight = QAction("🌌 Midnight", self)
+        theme_midnight.triggered.connect(lambda: self._apply_theme_preset("midnight"))
+
+        theme_menu.addAction(theme_light)
+        theme_menu.addAction(theme_dark)
+        theme_menu.addAction(theme_midnight)
+
+        # File menu actions
+        file_menu.addAction(QAction("📁 Open Workspace", self, triggered=self._on_choose_workspace))
+        file_menu.addAction(QAction("🧹 Clean Databases", self, triggered=self._on_clean_databases))
+        file_menu.addSeparator()
+        file_menu.addAction(QAction("❌ Exit", self, triggered=self.close))
+
+        # Edit menu actions
+        edit_menu.addAction(QAction("🔄 Refresh", self, triggered=self._on_scan))
+
+        # About
+        about_menu = menu_bar.addMenu("Help")
+        about_menu.addAction(QAction("ℹ️ About", self))
+
+    def _apply_theme_preset(self, theme_id: str) -> None:
+        """Apply the selected theme preset."""
+        self._current_theme = theme_id
+        set_theme("dark" if theme_id in ("dark", "midnight") else "light")
+        self.setStyleSheet(get_stylesheet(theme_id))
+        
+        # Update icons for new theme
+        for btn in self._icon_buttons.values():
+            btn.setIcon(get_icon(self._get_icon_name_for_button(btn)))
+
+    def _get_icon_name_for_button(self, button: QToolButton) -> str:
+        """Get icon name for a button."""
+        icon_map = {
+            self.list_btn: "list",
+            self.grid_btn: "grid",
+            self.all_btn: "home",
+            self.folder_btn: "folder",
+            self.type_all_btn: "clear",
+            self.type_image_btn: "image",
+            self.type_video_btn: "video",
+            self.type_doc_btn: "document",
+            self.type_audio_btn: "audio",
+            self.type_other_btn: "more",
+            self.sort_name_asc: "arrow_up",
+            self.sort_name_desc: "arrow_down",
+            self.sort_modified: "clock",
+            self.sort_size: "trash",
+        }
+        return icon_map.get(button, "clear")
 
     def _load_initial_files(self) -> None:
         self._apply_filters()
@@ -172,6 +375,13 @@ class MainWindow(QMainWindow):
     def _load_tags(self) -> None:
         tags = self.controller.list_tags()
         self.tag_panel.set_tags(tags)
+
+    def _refresh_workspace_ui(self) -> None:
+        if self.active_workspace is not None:
+            self.workspace_label.setText(f"📁 {self.active_workspace.name}")
+            self.statusBar().showMessage(f"Workspace: {self.active_workspace}")
+        else:
+            self.workspace_label.setText("No workspace")
 
     def _on_scan(self) -> None:
         if not self.active_workspace:
@@ -201,7 +411,7 @@ class MainWindow(QMainWindow):
                 self._scan_thread = None
                 self._scan_worker = None
 
-        self.statusBar().showMessage("Scanning...")
+        self.statusBar().showMessage("🔍 Scanning...")
         self.progress.setRange(0, 0)
         self.progress.setVisible(True)
 
@@ -238,7 +448,7 @@ class MainWindow(QMainWindow):
         results = self.controller.search(query)
         self.browser_view.set_search_results(results, root=self.active_workspace)
         self.detail_panel.set_file(None)
-        self.selection_label.setText("Selected files: 0")
+        self.selection_label.setText("0 items selected")
 
     def _on_search_text_changed(self, text: str) -> None:
         if not text:
@@ -246,16 +456,6 @@ class MainWindow(QMainWindow):
 
     def _on_filter_changed(self) -> None:
         self._apply_filters()
-
-    def _on_view_mode_changed(self) -> None:
-        mode = self.view_mode.currentData()
-        if mode:
-            self.browser_view.set_view_mode(mode)
-
-    def _on_layout_mode_changed(self) -> None:
-        mode = self.layout_mode.currentData()
-        if mode:
-            self.browser_view.set_layout_mode(mode)
 
     def _apply_filters(self) -> None:
         text = self.search_input.text().strip()
@@ -271,19 +471,16 @@ class MainWindow(QMainWindow):
         results = self.controller.search(query)
         self.browser_view.set_search_results(results, root=self.active_workspace)
         self.detail_panel.set_file(None)
-        self.selection_label.setText("Selected files: 0")
+        self.selection_label.setText("0 items selected")
 
     def _selected_types(self) -> tuple[str, ...]:
-        value = self.type_filter.currentData()
+        value = self._type_filter_value
         if not value:
             return ()
         return (value,)
 
     def _selected_sort(self) -> tuple[str | None, bool]:
-        value = self.sort_filter.currentData()
-        if not value:
-            return None, False
-        return value
+        return self._sort_filter_value
 
     def _on_tag_filter_clicked(self) -> None:
         tag_names = self.tag_panel.selected_tag_names()
@@ -306,10 +503,13 @@ class MainWindow(QMainWindow):
 
     def _on_clear_filter(self) -> None:
         self.search_input.clear()
-        self.type_filter.setCurrentIndex(0)
-        self.sort_filter.setCurrentIndex(0)
-        self.view_mode.setCurrentIndex(0)
-        self.layout_mode.setCurrentIndex(0)
+        self._type_filter_value = ""
+        self._sort_filter_value = ("name", False)
+        self._view_mode_value = "list"
+        self._layout_mode_value = "all"
+        self._set_view_mode(self._view_mode_value)
+        self._set_layout_mode(self._layout_mode_value)
+        self._sync_icon_buttons()
         self._apply_filters()
 
     def _on_apply_tags(self) -> None:
@@ -344,7 +544,7 @@ class MainWindow(QMainWindow):
         self.controller.delete_files(file_ids)
         self._load_initial_files()
         self.detail_panel.set_file(None)
-        self.selection_label.setText("Selected files: 0")
+        self.selection_label.setText("0 items selected")
 
     def _on_choose_workspace(self) -> None:
         selected = QFileDialog.getExistingDirectory(self, "Select Workspace")
@@ -361,7 +561,9 @@ class MainWindow(QMainWindow):
 
         init_db(self.config.db_path)
         self.controller = AppController(self.config)
-        self.statusBar().showMessage(f"Workspace: {self.active_workspace}")
+        self._load_tags()
+        save_last_workspace(self.config.data_dir, self.active_workspace)
+        self._refresh_workspace_ui()
         self._restart_watch()
         self._on_scan()
 
@@ -391,7 +593,7 @@ class MainWindow(QMainWindow):
                 deleted += 1
             except Exception:
                 continue
-        self.statusBar().showMessage(f"Removed {deleted} workspace databases")
+        self.statusBar().showMessage(f"✓ Removed {deleted} workspace databases")
 
     def _on_move_files(self) -> None:
         file_ids = self.browser_view.selected_file_ids()
@@ -405,11 +607,11 @@ class MainWindow(QMainWindow):
         )
         self._load_initial_files()
         self.detail_panel.set_file(None)
-        self.selection_label.setText("Selected files: 0")
+        self.selection_label.setText("0 items selected")
         if errors:
             QMessageBox.warning(self, "Move", "\n".join(errors))
         else:
-            self.statusBar().showMessage(f"Moved {moved} files")
+            self.statusBar().showMessage(f"✓ Moved {moved} files")
 
     def _on_copy_files(self) -> None:
         file_ids = self.browser_view.selected_file_ids()
@@ -423,11 +625,11 @@ class MainWindow(QMainWindow):
         )
         self._load_initial_files()
         self.detail_panel.set_file(None)
-        self.selection_label.setText("Selected files: 0")
+        self.selection_label.setText("0 items selected")
         if errors:
             QMessageBox.warning(self, "Copy", "\n".join(errors))
         else:
-            self.statusBar().showMessage(f"Copied {copied} files")
+            self.statusBar().showMessage(f"✓ Copied {copied} files")
 
     def _on_open_folder(self) -> None:
         file_id = self.browser_view.selected_file_id
@@ -450,7 +652,7 @@ class MainWindow(QMainWindow):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path)))
 
     def _on_selection_count(self, count: int) -> None:
-        self.selection_label.setText(f"Selected files: {count}")
+        self.selection_label.setText(f"{count} item{'s' if count != 1 else ''} selected")
 
     def _on_file_selected(self, file_id: int) -> None:
         file_row = self.controller.get_file(file_id)
@@ -474,13 +676,13 @@ class MainWindow(QMainWindow):
             self._load_tags()
 
     def _on_scan_progress(self, count: int) -> None:
-        self.statusBar().showMessage(f"Scanning... {count} files")
+        self.statusBar().showMessage(f"🔍 Scanning... {count} files")
 
     def _on_scan_finished(self, count: int) -> None:
         self.progress.setRange(0, 1)
         self.progress.setValue(1)
         self.progress.setVisible(False)
-        self.statusBar().showMessage(f"Scan complete: {count} files")
+        self.statusBar().showMessage(f"✓ Scan complete: {count} files")
         self._load_initial_files()
         self.detail_panel.set_file(None)
         self._restart_watch()
@@ -503,185 +705,52 @@ class MainWindow(QMainWindow):
             on_delete=self.controller.handle_file_deleted,
         )
 
-    def _apply_theme(self) -> None:
-        self._apply_theme_preset("gray")
+    def _set_view_mode(self, mode: str) -> None:
+        self._view_mode_value = mode
+        self.browser_view.set_view_mode(mode)
+        self._sync_icon_buttons()
+        self._apply_filters()
 
-    def _apply_theme_preset(self, theme_id: str) -> None:
-        if theme_id == "night":
-            self._apply_night_theme()
+    def _set_layout_mode(self, mode: str) -> None:
+        self._layout_mode_value = mode
+        self.browser_view.set_layout_mode(mode)
+        self._sync_icon_buttons()
+        self._apply_filters()
+
+    def _set_type_filter(self, value: str) -> None:
+        self._type_filter_value = value
+        self._sync_icon_buttons()
+        self._apply_filters()
+
+    def _set_sort_filter(self, sort_by: str | None, sort_desc: bool) -> None:
+        self._sort_filter_value = (sort_by, sort_desc)
+        self._sync_icon_buttons()
+        self._apply_filters()
+
+    def _sync_icon_buttons(self) -> None:
+        if not hasattr(self, "_icon_buttons"):
             return
-        self._apply_gray_theme()
-
-    def _apply_gray_theme(self) -> None:
-        self.setStyleSheet(
-            """
-            QMainWindow {
-                background-color: #f2f4f7;
-            }
-            QMenuBar {
-                background: #ffffff;
-                border-bottom: 1px solid #e0e5ec;
-            }
-            QMenuBar::item:selected {
-                background: #eef2f7;
-            }
-            QMenu {
-                background: #ffffff;
-                border: 1px solid #e0e5ec;
-            }
-            QMenu::item:selected {
-                background: #dbe7ff;
-            }
-            QToolBar {
-                background: #ffffff;
-                border: none;
-                padding: 6px;
-                spacing: 8px;
-            }
-            QToolBar QLineEdit,
-            QToolBar QComboBox {
-                background: #f6f7f9;
-                border: 1px solid #d6dbe3;
-                border-radius: 6px;
-                padding: 4px 6px;
-                min-height: 24px;
-            }
-            QToolBar QPushButton {
-                background: #ffffff;
-                border: 1px solid #d6dbe3;
-                border-radius: 6px;
-                padding: 4px 10px;
-            }
-            QToolBar QPushButton:hover {
-                background: #eef2f7;
-            }
-            #sidePanel {
-                background: #ffffff;
-                border: 1px solid #e0e5ec;
-                border-radius: 8px;
-                padding: 8px;
-            }
-            #tagPanel,
-            #detailPanel {
-                background: #ffffff;
-            }
-            QStatusBar {
-                background: #ffffff;
-                border-top: 1px solid #e0e5ec;
-            }
-            QListWidget,
-            QTreeWidget {
-                background: #ffffff;
-                border: 1px solid #e0e5ec;
-                border-radius: 6px;
-            }
-            QListWidget::item:selected,
-            QTreeWidget::item:selected {
-                background: #dbe7ff;
-                color: #1f2937;
-            }
-            """
+        self._icon_buttons["view_list"].setChecked(self._view_mode_value == "list")
+        self._icon_buttons["view_grid"].setChecked(self._view_mode_value == "grid")
+        self._icon_buttons["layout_all"].setChecked(self._layout_mode_value == "all")
+        self._icon_buttons["layout_folders"].setChecked(
+            self._layout_mode_value == "folders"
         )
-
-    def _apply_night_theme(self) -> None:
-        self.setStyleSheet(
-            """
-            QMainWindow {
-                background-color: #0f1420;
-                color: #e5e7eb;
-            }
-            QMenuBar {
-                background: #111827;
-                color: #e5e7eb;
-                border-bottom: 1px solid #1f2937;
-            }
-            QMenuBar::item:selected {
-                background: #1f2937;
-            }
-            QMenu {
-                background: #111827;
-                color: #e5e7eb;
-                border: 1px solid #1f2937;
-            }
-            QMenu::item:selected {
-                background: #1f2937;
-            }
-            QToolBar {
-                background: #111827;
-                border: none;
-                padding: 6px;
-                spacing: 8px;
-            }
-            QToolBar QLineEdit,
-            QToolBar QComboBox {
-                background: #0b1220;
-                border: 1px solid #22314a;
-                border-radius: 6px;
-                padding: 4px 6px;
-                min-height: 24px;
-                color: #e5e7eb;
-            }
-            QToolBar QPushButton {
-                background: #0b1220;
-                color: #e5e7eb;
-                border: 1px solid #22314a;
-                border-radius: 6px;
-                padding: 4px 10px;
-            }
-            QToolBar QPushButton:hover {
-                background: #172136;
-            }
-            #sidePanel {
-                background: #111827;
-                border: 1px solid #1f2937;
-                border-radius: 8px;
-                padding: 8px;
-            }
-            #tagPanel,
-            #detailPanel {
-                background: #111827;
-                color: #e5e7eb;
-            }
-            QStatusBar {
-                background: #111827;
-                border-top: 1px solid #1f2937;
-                color: #e5e7eb;
-            }
-            QListWidget,
-            QTreeWidget {
-                background: #0b1220;
-                border: 1px solid #22314a;
-                border-radius: 6px;
-                color: #e5e7eb;
-            }
-            QListWidget::item:selected,
-            QTreeWidget::item:selected {
-                background: #1d4ed8;
-                color: #ffffff;
-            }
-            """
+        self._icon_buttons["type_all"].setChecked(self._type_filter_value == "")
+        self._icon_buttons["type_image"].setChecked(self._type_filter_value == "image")
+        self._icon_buttons["type_video"].setChecked(self._type_filter_value == "video")
+        self._icon_buttons["type_doc"].setChecked(self._type_filter_value == "doc")
+        self._icon_buttons["type_audio"].setChecked(self._type_filter_value == "audio")
+        self._icon_buttons["type_other"].setChecked(self._type_filter_value == "other")
+        sort_by, sort_desc = self._sort_filter_value
+        self._icon_buttons["sort_name_asc"].setChecked(
+            sort_by == "name" and not sort_desc
         )
-
-    def _build_menu(self) -> None:
-        menu_bar = self.menuBar()
-
-        file_menu = menu_bar.addMenu("File")
-        tools_menu = menu_bar.addMenu("Tools")
-        theme_menu = QMenu("Theme", self)
-        about_menu = menu_bar.addMenu("About")
-
-        tools_menu.addMenu(theme_menu)
-
-        theme_gray = QAction("Gray", self)
-        theme_gray.triggered.connect(lambda: self._apply_theme_preset("gray"))
-        theme_night = QAction("Night Blue", self)
-        theme_night.triggered.connect(lambda: self._apply_theme_preset("night"))
-
-        theme_menu.addAction(theme_gray)
-        theme_menu.addAction(theme_night)
-
-        file_menu.addAction(QAction("Exit", self, triggered=self.close))
-        about_menu.addAction(QAction("About", self))
+        self._icon_buttons["sort_name_desc"].setChecked(
+            sort_by == "name" and sort_desc
+        )
+        self._icon_buttons["sort_modified"].setChecked(sort_by == "modified_at")
+        self._icon_buttons["sort_size"].setChecked(sort_by == "size")
 
 
 class ScanWorker(QObject):
