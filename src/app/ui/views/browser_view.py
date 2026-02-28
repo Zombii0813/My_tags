@@ -332,11 +332,13 @@ class FileBrowserView(QWidget):
                 widget.setViewMode(QListView.IconMode)
                 widget.setResizeMode(QListView.Adjust)
                 widget.setIconSize(QSize(100, 100))
-                widget.setGridSize(QSize(140, 140))
+                widget.setGridSize(QSize(140, 160))
                 widget.setSpacing(8)
                 widget.setWordWrap(True)
                 widget.setTextElideMode(Qt.ElideMiddle)
                 widget.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+                # Align items to the bottom for consistent layout
+                widget.setUniformItemSizes(True)
                 scroll = widget.verticalScrollBar()
                 icon_size = widget.iconSize()
                 scroll.setSingleStep(max(36, icon_size.height() // 2))
@@ -666,9 +668,25 @@ class FileBrowserView(QWidget):
 
         if pixmap is None or pixmap.isNull():
             return None
+        
+        # Create a fixed-size pixmap with transparent background
+        target = QPixmap(icon_size)
+        target.fill(Qt.transparent)
+        
+        # Scale the original pixmap to fit within the target while maintaining aspect ratio
         scaled = pixmap.scaled(
             icon_size,
             Qt.KeepAspectRatio,
             Qt.SmoothTransformation,
         )
-        return QIcon(scaled)
+        
+        # Paint the scaled pixmap at the bottom center of the target
+        from PySide6.QtGui import QPainter
+        painter = QPainter(target)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        x = (target.width() - scaled.width()) // 2
+        y = target.height() - scaled.height()  # Align to bottom
+        painter.drawPixmap(x, y, scaled)
+        painter.end()
+        
+        return QIcon(target)

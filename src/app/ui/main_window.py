@@ -277,6 +277,7 @@ class MainWindow(QMainWindow):
         self.tag_panel.remove_button.clicked.connect(self._on_remove_tags)
         self.tag_panel.filter_button.clicked.connect(self._on_tag_filter_clicked)
         self.tag_panel.clear_filter_button.clicked.connect(self._on_clear_filter)
+        self.detail_panel.tag_remove_requested.connect(self._on_detail_tag_removed)
 
         return splitter
 
@@ -518,7 +519,7 @@ class MainWindow(QMainWindow):
             return
         tag_ids = self.tag_panel.selected_tag_ids()
         for file_id in file_ids:
-            self.controller.replace_tags(file_id, tag_ids)
+            self.controller.attach_tags(file_id, tag_ids)
         self._on_file_selected(file_ids[0])
 
     def _on_remove_tags(self) -> None:
@@ -529,6 +530,20 @@ class MainWindow(QMainWindow):
         for file_id in file_ids:
             self.controller.remove_tags(file_id, tag_ids)
         self._on_file_selected(file_ids[0])
+
+    def _on_detail_tag_removed(self, file_id: int, tag_name: str) -> None:
+        """Handle tag removal from detail panel."""
+        # Get tag id from name
+        tags = self.controller.list_tags()
+        tag_id = None
+        for tag in tags:
+            if tag.name == tag_name:
+                tag_id = tag.id
+                break
+        if tag_id is not None:
+            self.controller.remove_tags(file_id, [tag_id])
+            # Refresh the detail panel
+            self._on_file_selected(file_id)
 
     def _on_delete_files(self) -> None:
         file_ids = self.browser_view.selected_file_ids()

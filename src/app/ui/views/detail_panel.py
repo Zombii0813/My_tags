@@ -6,7 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QSize, QTimer
+from PySide6.QtCore import Qt, QSize, QTimer, Signal
 from PySide6.QtGui import QPixmap, QFont, QColor, QPainter
 from PySide6.QtWidgets import (
     QLabel, QSizePolicy, QVBoxLayout, QWidget,
@@ -82,6 +82,8 @@ class DetailPanel(QWidget):
     - Tag chips for associated tags
     - Modern card-based layout
     """
+
+    tag_remove_requested = Signal(int, str)  # file_id, tag_name
 
     def __init__(self) -> None:
         super().__init__()
@@ -302,6 +304,7 @@ class DetailPanel(QWidget):
 
         # Tags container
         self.tags_container = TagChipContainer()
+        self.tags_container.tag_removed.connect(self._on_tag_removed)
         layout.addWidget(self.tags_container)
 
         return section
@@ -378,8 +381,9 @@ class DetailPanel(QWidget):
 
         # Update tags
         self.tags_container.clear()
+        self._current_tags = tags  # Store current tags
         for tag in tags:
-            self.tags_container.add_chip(tag, self._get_tag_color(tag))
+            self.tags_container.add_chip(tag, self._get_tag_color(tag), removable=True)
 
     def _update_preview(self, file_row: File) -> None:
         """Update the preview image."""
@@ -468,6 +472,12 @@ class DetailPanel(QWidget):
         result.append(current)
         
         return ''.join(result)
+
+    def _on_tag_removed(self, tag_name: str) -> None:
+        """Handle tag removal from the detail panel."""
+        if self._current_file is not None and self._current_file.id is not None:
+            # Emit signal to parent for tag removal
+            self.tag_remove_requested.emit(int(self._current_file.id), tag_name)
 
     def resizeEvent(self, event) -> None:
         """Handle resize events to update preview size."""

@@ -3,7 +3,7 @@ Modern, colorful tag chip widget with animations and sleek design.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, Property, QPoint, QRect
+from PySide6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, Property, QPoint, QRect, Signal
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QFont, QFontMetrics
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QLabel, QLayout, QLayoutItem
@@ -100,9 +100,11 @@ class TagChip(QWidget):
     - Rounded pill-shaped design
     - Gradient backgrounds based on tag color
     - Hover animation with slight scale effect
-    - Optional close button
+    - Optional close button (shown on hover)
     - Customizable colors
     """
+
+    removed = Signal(str)  # Emitted when tag is removed, passes tag name
 
     # Predefined color schemes for tags
     COLOR_SCHEMES = {
@@ -137,15 +139,16 @@ class TagChip(QWidget):
         self._setup_ui()
         self._setup_animations()
         self.setFixedHeight(28)
-        self.setCursor(Qt.PointingHandCursor)
+        if not removable:
+            self.setCursor(Qt.PointingHandCursor)
 
     def _setup_ui(self):
         """Setup the widget layout."""
         self.setAttribute(Qt.WA_StyledBackground, True)
         
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 4, 12, 4)
-        layout.setSpacing(6)
+        layout.setContentsMargins(12, 4, 8, 4)
+        layout.setSpacing(4)
 
         self.label = QLabel(self._name)
         self.label.setStyleSheet("""
@@ -158,17 +161,19 @@ class TagChip(QWidget):
         """)
         layout.addWidget(self.label)
 
-        if self._removable:
-            self.close_btn = QLabel("×")
-            self.close_btn.setStyleSheet("""
-                QLabel {
-                    background: transparent;
-                    border: none;
-                    font-size: 16px;
-                    font-weight: 300;
-                }
-            """)
-            layout.addWidget(self.close_btn)
+        # Always create close button for removable chips, but hide initially
+        self.close_btn = QLabel("✕")
+        self.close_btn.setStyleSheet("""
+            QLabel {
+                background: transparent;
+                border: none;
+                font-size: 20px;
+                font-weight: 500;
+                padding: 0 2px;
+            }
+        """)
+        self.close_btn.setVisible(False)
+        layout.addWidget(self.close_btn)
 
     def _setup_animations(self):
         """Setup hover animations."""
@@ -192,6 +197,9 @@ class TagChip(QWidget):
         self._scale_animation.setStartValue(self._scale)
         self._scale_animation.setEndValue(1.05)
         self._scale_animation.start()
+        # Show close button on hover if removable
+        if self._removable:
+            self.close_btn.setVisible(True)
         super().enterEvent(event)
 
     def leaveEvent(self, event):
@@ -201,17 +209,20 @@ class TagChip(QWidget):
         self._scale_animation.setStartValue(self._scale)
         self._scale_animation.setEndValue(1.0)
         self._scale_animation.start()
+        # Hide close button when not hovering
+        if self._removable:
+            self.close_btn.setVisible(False)
         super().leaveEvent(event)
 
     def mousePressEvent(self, event):
         """Handle mouse press."""
         if self._removable and event.button() == Qt.LeftButton:
             # Check if close button was clicked
-            if hasattr(self, 'close_btn'):
-                close_rect = self.close_btn.geometry()
-                if close_rect.contains(event.pos()):
-                    self.deleteLater()
-                    return
+            close_rect = self.close_btn.geometry()
+            if close_rect.contains(event.pos()):
+                self.removed.emit(self._name)
+                self.deleteLater()
+                return
         super().mousePressEvent(event)
 
     def paintEvent(self, event):
@@ -302,7 +313,7 @@ class TagChip(QWidget):
         text_width = metrics.horizontalAdvance(self._name)
         width = text_width + 24  # padding
         if self._removable:
-            width += 20  # close button space
+            width += 24  # close button space (larger for bigger X)
         return QSize(width, 28)
 
 
@@ -311,6 +322,8 @@ class TagChipContainer(QWidget):
     A container widget for organizing multiple tag chips.
     Provides wrapping and spacing between chips.
     """
+
+    tag_removed = Signal(str)  # Emitted when a tag is removed, passes tag name
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -327,9 +340,14 @@ class TagChipContainer(QWidget):
     def add_chip(self, name: str, color: str = "blue", removable: bool = False) -> TagChip:
         """Add a new tag chip."""
         chip = TagChip(name, color, removable, self)
+        chip.removed.connect(self._on_chip_removed)
         self._chips.append(chip)
         self.layout.addWidget(chip)
         return chip
+
+    def _on_chip_removed(self, tag_name: str):
+        """Handle tag chip removal."""
+        self.tag_removed.emit(tag_name)
 
     def remove_chip(self, chip: TagChip):
         """Remove a tag chip."""
