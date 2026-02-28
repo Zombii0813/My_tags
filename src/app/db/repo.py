@@ -361,7 +361,7 @@ class Repo:
 
         # 文本搜索：优先使用 FTS5，回退到 LIKE
         if query.text:
-            if self._has_fts5():
+            if query.use_fts and self._has_fts5() and self._should_use_fts(query.text):
                 # 使用 FTS5 全文搜索
                 fts_ids = self._fts_search(query.text, limit)
                 if fts_ids:
@@ -371,7 +371,7 @@ class Repo:
                     term = f"%{query.text}%"
                     stmt = stmt.where(File.name.ilike(term))
             else:
-                # 无 FTS5，使用 LIKE
+                # 无 FTS5 或不适合用 FTS，使用 LIKE
                 term = f"%{query.text}%"
                 stmt = stmt.where(File.name.ilike(term))
 
@@ -463,11 +463,11 @@ class Repo:
                 )
         return results
 
-    def _fts_search(self, text: str, limit: int | None = None) -> list[int]:
+    def _fts_search(self, query: str, limit: int | None = None) -> list[int]:
         """内部 FTS5 搜索方法 - 返回文件 ID 列表
         
         Args:
-            text: 搜索文本
+            query: 搜索文本
             limit: 结果数量限制
         
         Returns:
@@ -475,9 +475,12 @@ class Repo:
         """
         if not self._has_fts5():
             return []
+
+        if not query.strip() or query.lstrip().startswith("*"):
+            return []
         
         # 转义特殊字符，防止查询错误
-        escaped = text.replace("'", "''")
+        escaped = query.replace("'", "''")
         
         sql = "SELECT rowid FROM files_fts WHERE files_fts MATCH :text ORDER BY rank"
         params: dict[str, object] = {"text": escaped}
@@ -485,12 +488,42 @@ class Repo:
             sql += " LIMIT :limit"
             params["limit"] = limit
         
-        result = self.session.execute(text(sql), params)
-        return [row[0] for row in result]
+        try:
+            result = self.session.execute(text(sql), params)
+            return [row[0] for row in result]
+        except Exception:
+            return []
+
+    def _should_use_fts(self, query: str) -> bool:
+        stripped = query.strip()
+        if not stripped:
+            return False
+        if stripped.lstrip().startswith("*"):
+            return False
+        upper = f" {stripped.upper()} "
+        if '"' in stripped or "*" in stripped:
+            return True
+        if " AND " in upper or " OR " in upper or " NOT " in upper or " NEAR " in upper:
+            return True
+        if stripped.isdigit():
+            return False
+        if len(stripped) < 3:
+            return False
+        return True
 
     def _has_fts5(self) -> bool:
         """检查 FTS5 扩展是否可用"""
         try:
+            sql = self.session.execute(
+                text(
+                    "SELECT sql FROM sqlite_master WHERE type='table' AND name='files_fts'"
+                )
+            ).scalar()
+            if not sql:
+                return False
+            lowered = str(sql).lower()
+            if "create virtual table" not in lowered or "fts5" not in lowered:
+                return False
             self.session.execute(text("SELECT 1 FROM files_fts LIMIT 1"))
             return True
         except Exception:

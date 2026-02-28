@@ -28,6 +28,7 @@ def init_db(db_path: Path) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     
     if _engine is None or _engine_path != db_path:
+        from . import models
         # 创建带连接池的引擎
         # 使用 QueuePool 实现连接复用，减少连接开销
         _engine = create_engine(
@@ -41,7 +42,7 @@ def init_db(db_path: Path) -> None:
             pool_pre_ping=True,  # 连接前 ping 检测，自动回收失效连接
         )
         SessionLocal.configure(bind=_engine)
-        Base.metadata.create_all(bind=_engine)
+        Base.metadata.create_all(bind=_engine, tables=_schema_tables())
         _ensure_schema()
         _init_fts5()
         _engine_path = db_path
@@ -63,6 +64,25 @@ def _ensure_schema() -> None:
         session.close()
 
 
+def _schema_tables():
+    return [table for table in Base.metadata.sorted_tables if table.name != "files_fts"]
+
+
+def _get_table_sql(connection, table_name: str) -> str | None:
+    result = connection.execute(
+        text("SELECT sql FROM sqlite_master WHERE type='table' AND name=:name"),
+        {"name": table_name},
+    )
+    return result.scalar()
+
+
+def _is_fts5_table_sql(sql: str | None) -> bool:
+    if not sql:
+        return False
+    lowered = sql.lower()
+    return "create virtual table" in lowered and "fts5" in lowered
+
+
 def _init_fts5() -> None:
     """初始化 FTS5 全文搜索虚拟表
     
@@ -80,37 +100,67 @@ def _init_fts5() -> None:
             # FTS5 不可用，跳过创建
             return
         
-        # 创建 FTS5 虚拟表
-        connection.execute(text("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(
-                name,
-                content='files',
-                content_rowid='id'
-            )
-        """))
-        
-        # 创建触发器保持 FTS 表与 files 表同步
-        # 插入触发器
-        connection.execute(text("""
-            CREATE TRIGGER IF NOT EXISTS files_ai AFTER INSERT ON files BEGIN
-                INSERT INTO files_fts(rowid, name) VALUES (new.id, new.name);
-            END
-        """))
-        
-        # 删除触发器
-        connection.execute(text("""
-            CREATE TRIGGER IF NOT EXISTS files_ad AFTER DELETE ON files BEGIN
-                INSERT INTO files_fts(files_fts, rowid, name) VALUES ('delete', old.id, old.name);
-            END
-        """))
-        
-        # 更新触发器
-        connection.execute(text("""
-            CREATE TRIGGER IF NOT EXISTS files_au AFTER UPDATE ON files BEGIN
-                INSERT INTO files_fts(files_fts, rowid, name) VALUES ('delete', old.id, old.name);
-                INSERT INTO files_fts(rowid, name) VALUES (new.id, new.name);
-            END
-        """))
+        existing_sql = _get_table_sql(connection, "files_fts")
+        if existing_sql and not _is_fts5_table_sql(existing_sql):
+            connection.execute(text("DROP TABLE files_fts"))
+            existing_sql = None
+
+        if existing_sql is None:
+            connection.execute(text("DROP TRIGGER IF EXISTS files_ai"))
+            connection.execute(text("DROP TRIGGER IF EXISTS files_ad"))
+            connection.execute(text("DROP TRIGGER IF EXISTS files_au"))
+            # 创建 FTS5 虚拟表
+            connection.execute(text("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(
+                    name,
+                    content='files',
+                    content_rowid='id'
+                )
+            """))
+
+            # 创建触发器保持 FTS 表与 files 表同步
+            # 插入触发器
+            connection.execute(text("""
+                CREATE TRIGGER files_ai AFTER INSERT ON files BEGIN
+                    INSERT INTO files_fts(rowid, name) VALUES (new.id, new.name);
+                END
+            """))
+            
+            # 删除触发器
+            connection.execute(text("""
+                CREATE TRIGGER files_ad AFTER DELETE ON files BEGIN
+                    INSERT INTO files_fts(files_fts, rowid, name) VALUES ('delete', old.id, old.name);
+                END
+            """))
+            
+            # 更新触发器
+            connection.execute(text("""
+                CREATE TRIGGER files_au AFTER UPDATE ON files BEGIN
+                    INSERT INTO files_fts(files_fts, rowid, name) VALUES ('delete', old.id, old.name);
+                    INSERT INTO files_fts(rowid, name) VALUES (new.id, new.name);
+                END
+            """))
+
+            # 构建初始索引
+            connection.execute(text("INSERT INTO files_fts(files_fts) VALUES ('rebuild')"))
+        else:
+            # 确保触发器存在
+            connection.execute(text("""
+                CREATE TRIGGER IF NOT EXISTS files_ai AFTER INSERT ON files BEGIN
+                    INSERT INTO files_fts(rowid, name) VALUES (new.id, new.name);
+                END
+            """))
+            connection.execute(text("""
+                CREATE TRIGGER IF NOT EXISTS files_ad AFTER DELETE ON files BEGIN
+                    INSERT INTO files_fts(files_fts, rowid, name) VALUES ('delete', old.id, old.name);
+                END
+            """))
+            connection.execute(text("""
+                CREATE TRIGGER IF NOT EXISTS files_au AFTER UPDATE ON files BEGIN
+                    INSERT INTO files_fts(files_fts, rowid, name) VALUES ('delete', old.id, old.name);
+                    INSERT INTO files_fts(rowid, name) VALUES (new.id, new.name);
+                END
+            """))
         
         session.commit()
     except Exception:
@@ -165,6 +215,8 @@ def rebuild_fts_index() -> None:
     session = SessionLocal()
     try:
         connection = session.connection()
+        if not _is_fts5_table_sql(_get_table_sql(connection, "files_fts")):
+            return
         # 重建索引
         connection.execute(text("INSERT INTO files_fts(files_fts) VALUES ('rebuild')"))
         session.commit()

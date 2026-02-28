@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import cast
 
-from PySide6.QtCore import QObject, QThread, Signal, QUrl, QSize, Qt
+from PySide6.QtCore import QObject, QThread, Signal, QUrl, QSize, Qt, QTimer
 from PySide6.QtWidgets import (
     QLabel,
     QFileDialog,
@@ -51,6 +51,10 @@ class MainWindow(QMainWindow):
         self._type_filter_value = ""
         self._sort_filter_value: tuple[str | None, bool] = ("name", False)
         self._current_theme = "light"
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(300)
+        self._search_timer.timeout.connect(self._apply_filters)
         
         self.setWindowTitle("My Tags")
         self.resize(1400, 900)
@@ -293,6 +297,11 @@ class MainWindow(QMainWindow):
         self.progress.setTextVisible(False)
         self.status_bar.addPermanentWidget(self.progress)
 
+        # Memory cache stats label
+        self.cache_stats_label = QLabel("")
+        self.cache_stats_label.setStyleSheet("padding: 0 8px; color: #64748b; font-size: 11px;")
+        self.status_bar.addPermanentWidget(self.cache_stats_label)
+
         # Selection counter
         self.selection_label = QLabel("0 items selected")
         self.selection_label.setStyleSheet("padding: 0 8px;")
@@ -302,6 +311,11 @@ class MainWindow(QMainWindow):
         self.workspace_label = QLabel("No workspace")
         self.workspace_label.setStyleSheet("padding: 0 8px; color: #64748b;")
         self.status_bar.addWidget(self.workspace_label)
+        
+        # Setup cache stats timer
+        self._cache_stats_timer = QTimer(self)
+        self._cache_stats_timer.timeout.connect(self._update_cache_stats)
+        self._cache_stats_timer.start(2000)  # 每2秒更新一次
 
     def _build_menu(self) -> None:
         """Build the menu bar."""
@@ -330,6 +344,8 @@ class MainWindow(QMainWindow):
         # File menu actions
         file_menu.addAction(QAction("📁 Open Workspace", self, triggered=self._on_choose_workspace))
         file_menu.addAction(QAction("🧹 Clean Databases", self, triggered=self._on_clean_databases))
+        file_menu.addSeparator()
+        file_menu.addAction(QAction("🗑️ Clean Thumbnail Cache", self, triggered=self._on_clean_thumbnail_cache))
         file_menu.addSeparator()
         file_menu.addAction(QAction("❌ Exit", self, triggered=self.close))
 
@@ -452,8 +468,11 @@ class MainWindow(QMainWindow):
         self.selection_label.setText("0 items selected")
 
     def _on_search_text_changed(self, text: str) -> None:
+        self._search_timer.stop()
         if not text:
             self._apply_filters()
+            return
+        self._search_timer.start()
 
     def _on_filter_changed(self) -> None:
         self._apply_filters()
@@ -767,6 +786,27 @@ class MainWindow(QMainWindow):
         )
         self._icon_buttons["sort_modified"].setChecked(sort_by == "modified_at")
         self._icon_buttons["sort_size"].setChecked(sort_by == "size")
+
+    def _update_cache_stats(self) -> None:
+        """更新缩略图缓存统计信息"""
+        thumb_service = self.browser_view._thumb_service
+        stats = thumb_service.cache_stats
+        self.cache_stats_label.setText(
+            f"📷 Cache: {stats['cache_items']} items, {stats['cache_memory_mb']} MB"
+        )
+    
+    def _on_clean_thumbnail_cache(self) -> None:
+        """清理缩略图缓存"""
+        from PySide6.QtWidgets import QMessageBox
+        
+        thumb_service = self.browser_view._thumb_service
+        deleted = thumb_service.cleanup_old_cache_files(max_age_days=7)
+        
+        QMessageBox.information(
+            self,
+            "Cache Cleanup",
+            f"Deleted {deleted} old thumbnail cache files."
+        )
 
 
 class ScanWorker(QObject):

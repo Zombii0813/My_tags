@@ -1,19 +1,24 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import hashlib
+import logging
 import os
 import shutil
 import subprocess
+import time
 from typing import Literal
 
 from PIL import Image
 from PySide6.QtCore import QRunnable, QThreadPool, QRect, QTimer
-from PySide6.QtGui import QPixmap, QPixmapCache, QGuiApplication
+from PySide6.QtGui import QPixmap, QGuiApplication
 from PySide6.QtWidgets import QListWidget, QListWidgetItem
 
 from ..utils.windows_thumbnails import load_shell_thumbnail
+from ..utils.lru_cache import LRUCache
+
+logger = logging.getLogger(__name__)
 
 
 # 缩略图配置常量
@@ -169,6 +174,14 @@ class ThumbnailFormat:
             }
 
 
+def _pixmap_size_bytes(pixmap: QPixmap) -> int:
+    """计算QPixmap占用的字节数"""
+    if pixmap.isNull():
+        return 0
+    # QPixmap大小 = 宽度 * 高度 * 每个像素的字节数 (ARGB32 = 4字节)
+    return pixmap.width() * pixmap.height() * 4
+
+
 @dataclass
 class ThumbnailService:
     """缩略图服务 - 优化版
@@ -178,13 +191,23 @@ class ThumbnailService:
     2. 动态质量调整
     3. WebP/JPEG 自适应
     4. Retina/高分屏支持
+    5. LRU缓存管理内存
     """
     
     thumbs_dir: Path
+    # 最大内存缓存256MB
+    max_cache_memory_mb: float = 256.0
+    # 最大缓存条目数
+    max_cache_items: int = 2000
 
     def __post_init__(self) -> None:
-        # 内存缓存限制：128MB
-        QPixmapCache.setCacheLimit(128 * 1024)
+        # 初始化LRU缓存替代QPixmapCache
+        self._memory_cache = LRUCache[str, QPixmap](
+            max_size=self.max_cache_items,
+            max_memory_mb=self.max_cache_memory_mb,
+            size_callback=_pixmap_size_bytes,
+            eviction_callback=self._on_cache_eviction,
+        )
         
         # 线程池用于后台预加载
         self._thread_pool = QThreadPool()
@@ -198,6 +221,73 @@ class ThumbnailService:
         
         # 当前预加载范围
         self._current_range: ViewportRange | None = None
+        
+        # 最后清理时间
+        self._last_cleanup_time = time.time()
+        # 清理间隔（1小时）
+        self._cleanup_interval = 3600
+    
+    def _on_cache_eviction(self, key: str, pixmap: QPixmap) -> None:
+        """缓存淘汰时的回调 - 确保资源释放"""
+        # QPixmap会自动释放，这里可以添加日志
+        logger.debug(f"Evicted thumbnail from cache: {key[:50]}...")
+    
+    def cleanup_old_cache_files(self, max_age_days: int = 30) -> int:
+        """
+        清理旧的缩略图缓存文件
+        
+        Args:
+            max_age_days: 超过此天数的缓存文件将被删除
+            
+        Returns:
+            删除的文件数量
+        """
+        if not self.thumbs_dir.exists():
+            return 0
+        
+        deleted_count = 0
+        current_time = time.time()
+        max_age_seconds = max_age_days * 24 * 3600
+        
+        try:
+            for subdir in self.thumbs_dir.iterdir():
+                if not subdir.is_dir():
+                    continue
+                for subsubdir in subdir.iterdir():
+                    if not subsubdir.is_dir():
+                        continue
+                    for cache_file in subsubdir.iterdir():
+                        if not cache_file.is_file():
+                            continue
+                        try:
+                            stat = cache_file.stat()
+                            age = current_time - stat.st_mtime
+                            if age > max_age_seconds:
+                                cache_file.unlink()
+                                deleted_count += 1
+                        except OSError:
+                            continue
+        except Exception as e:
+            logger.warning(f"Error cleaning up cache files: {e}")
+        
+        logger.info(f"Cleaned up {deleted_count} old cache files")
+        return deleted_count
+    
+    def _maybe_cleanup(self) -> None:
+        """定期检查并清理旧缓存文件"""
+        current_time = time.time()
+        if current_time - self._last_cleanup_time > self._cleanup_interval:
+            self.cleanup_old_cache_files()
+            self._last_cleanup_time = current_time
+    
+    @property
+    def cache_stats(self) -> dict:
+        """返回缓存统计信息"""
+        return {
+            "cache_items": self._memory_cache.size,
+            "cache_memory_mb": round(self._memory_cache.memory_usage_mb, 2),
+            "max_memory_mb": self.max_cache_memory_mb,
+        }
 
     def _ensure_dir(self) -> None:
         self.thumbs_dir.mkdir(parents=True, exist_ok=True)
@@ -217,8 +307,8 @@ class ThumbnailService:
 
     def _load_cached_pixmap(self, cache_key: str, path: Path) -> QPixmap | None:
         """从内存或磁盘加载缓存的缩略图"""
-        # 先查内存缓存
-        cached = QPixmapCache.find(cache_key)
+        # 先查LRU内存缓存
+        cached = self._memory_cache.get(cache_key)
         if cached is not None and not cached.isNull():
             return cached
         
@@ -231,8 +321,8 @@ class ThumbnailService:
         if pixmap.isNull():
             return None
         
-        # 存入内存缓存
-        QPixmapCache.insert(cache_key, pixmap)
+        # 存入LRU内存缓存
+        self._memory_cache.put(cache_key, pixmap)
         return pixmap
 
     def _save_thumbnail(self, image: Image.Image, target: Path, size: tuple[int, int]) -> bool:
@@ -495,12 +585,18 @@ class ThumbnailService:
         buffered = viewport.with_buffer(BUFFER_ITEMS)
         
         # 如果范围没有变化，跳过
-        if (self._current_range is not None and 
+        if (self._current_range is not None and
             self._current_range.first_visible == buffered.first_visible and
             self._current_range.last_visible == buffered.last_visible):
             return
         
         self._current_range = buffered
+        
+        # 定期清理旧缓存文件
+        self._maybe_cleanup()
+        
+        # 释放不可见区域的缩略图缓存（超出缓冲区2倍的范围）
+        self._release_invisible_thumbnails(items, buffered, logical_size)
         
         # 取消旧的预加载任务
         self._preheat_token += 1
@@ -518,6 +614,71 @@ class ThumbnailService:
         
         self._preload_timer.timeout.connect(do_preheat)
         self._preload_timer.start(PRELOAD_DELAY_MS)
+    
+    def _release_invisible_thumbnails(
+        self,
+        items: list[dict],
+        visible_range: ViewportRange,
+        logical_size: tuple[int, int],
+    ) -> None:
+        """释放不可见区域的缩略图内存缓存
+        
+        保留可视区域+缓冲区的缓存，释放超出范围的缓存
+        
+        Args:
+            items: 所有项目数据
+            visible_range: 当前可视范围（含缓冲区）
+            logical_size: 缩略图尺寸
+        """
+        if not items:
+            return
+        
+        # 计算保留范围（扩大一倍缓冲区）
+        keep_range = visible_range.with_buffer(BUFFER_ITEMS * 2)
+        size = self.get_thumbnail_size(logical_size)
+        
+        # 收集需要保留的缓存键
+        keys_to_keep: set[str] = set()
+        for i in range(keep_range.first_visible, keep_range.last_visible + 1):
+            if i >= len(items):
+                break
+            
+            item = items[i]
+            path = Path(item.get("path", ""))
+            file_type = item.get("type")
+            
+            if not path.exists():
+                continue
+            
+            # 确定缩略图类型
+            if file_type in {"image", "video"}:
+                kind = str(file_type)
+            else:
+                kind = "shell"
+            
+            cache_key = self._cache_key(path, kind, size)
+            keys_to_keep.add(cache_key)
+        
+        # 找出需要释放的缓存键（在LRU缓存中但不在保留列表中）
+        keys_to_release: list[str] = []
+        for cache_key in self._memory_cache.keys():
+            if cache_key not in keys_to_keep:
+                keys_to_release.append(cache_key)
+        
+        # 释放这些缓存
+        released_count = 0
+        released_memory = 0
+        for key in keys_to_release:
+            pixmap = self._memory_cache.remove(key)
+            if pixmap is not None:
+                released_count += 1
+                released_memory += _pixmap_size_bytes(pixmap)
+        
+        if released_count > 0:
+            logger.debug(
+                f"Released {released_count} invisible thumbnails, "
+                f"freed {released_memory / 1024 / 1024:.2f} MB"
+            )
 
     def _start_preheat(
         self,
@@ -548,8 +709,12 @@ class ThumbnailService:
             else:
                 kind = "shell"
             
-            # 检查是否已缓存
+            # 检查是否已在内存或磁盘缓存中
             cache_key = self._cache_key(path, kind, size)
+            # 先检查内存缓存
+            if cache_key in self._memory_cache:
+                continue
+            # 再检查磁盘缓存
             cache_path = self._cache_path(cache_key)
             if not cache_path.exists():
                 preheat_items.append((path, kind))
