@@ -708,6 +708,7 @@ class MainWindow(QMainWindow):
 
     def _on_scan_failed(self, message: str) -> None:
         self.progress.setVisible(False)
+        print(f"Scan failed: {message}")
         QMessageBox.critical(self, "Scan failed", message)
 
     def _restart_watch(self) -> None:
