@@ -207,6 +207,9 @@ class FileBrowserView(QWidget):
 
         self.set_view_mode(self._view_mode)
         self.set_layout_mode(self._layout_mode)
+        
+        # 所有控件创建完成后，连接滚动预加载信号
+        self._setup_scroll_preload()
 
     def _style_list_widget(self, widget: QListWidget) -> None:
         """Apply modern styling to list widget."""
@@ -521,7 +524,6 @@ class FileBrowserView(QWidget):
         """Render items in a list widget."""
         widget.clear()
         icon_size = widget.iconSize()
-        preheat_items: list[tuple[Path, str]] = []
         
         for item in items:
             display_name = item["name"]
@@ -546,19 +548,44 @@ class FileBrowserView(QWidget):
                     list_item.setIcon(icon)
                     
             widget.addItem(list_item)
-            
-            if self._view_mode == "grid":
-                path = Path(item.get("path", ""))
-                file_type = item.get("type")
-                if path.exists():
-                    kind = str(file_type) if file_type in {"image", "video"} else "shell"
-                    preheat_items.append((path, kind))
-                    
-        if self._view_mode == "grid" and preheat_items:
-            self._thumb_service.preheat_disk_thumbnails(
-                preheat_items,
-                (icon_size.width(), icon_size.height()),
-            )
+        
+        # 使用可视区域预加载替代全量预加载
+        if self._view_mode == "grid" and items:
+            self._trigger_preload(widget, items)
+
+    def _setup_scroll_preload(self) -> None:
+        """设置滚动预加载 - 监听滚动信号触发可视区域缩略图加载"""
+        # 连接滚动条的 valueChanged 信号
+        self.list_widget.verticalScrollBar().valueChanged.connect(
+            lambda: self._on_scroll_changed(self.list_widget)
+        )
+        self.folder_list_widget.verticalScrollBar().valueChanged.connect(
+            lambda: self._on_scroll_changed(self.folder_list_widget)
+        )
+
+    def _on_scroll_changed(self, widget: QListWidget) -> None:
+        """滚动位置变化时触发预加载"""
+        if self._view_mode != "grid":
+            return
+        
+        # 确定当前显示的数据
+        items: list[dict] = []
+        if widget == self.list_widget:
+            items = self._items
+        elif widget == self.folder_list_widget and self._current_folder:
+            items = self._folder_map.get(self._current_folder, [])
+        
+        if items:
+            self._trigger_preload(widget, items)
+
+    def _trigger_preload(self, widget: QListWidget, items: list[dict]) -> None:
+        """触发可视区域缩略图预加载"""
+        icon_size = widget.iconSize()
+        self._thumb_service.preheat_visible_thumbnails(
+            widget,
+            items,
+            (icon_size.width(), icon_size.height()),
+        )
 
     def _get_type_icon(self, file_type: str) -> QIcon | None:
         """Get icon for file type."""
