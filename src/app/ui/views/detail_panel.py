@@ -100,7 +100,34 @@ class DetailPanel(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        scroll.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background: transparent;
+            }
+            /* 滚动条区域透明 */
+            /*
+            QScrollArea > QWidget > QWidget {
+                background: transparent;
+            }
+            */
+            /* 垂直滚动条样式 */
+            QScrollBar:vertical {
+                background: transparent;
+                width: 8px;
+                margin: 0px;
+            }
+            
+            QScrollBar::handle:vertical {
+                background: rgba(128, 128, 128, 0.5);
+                min-height: 30px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: rgba(128, 128, 128, 0.7);
+            }   
+        """)
         
         # Container widget
         container = QWidget()
@@ -142,44 +169,47 @@ class DetailPanel(QWidget):
         layout.addWidget(scroll)
 
     def _build_preview_section(self) -> QFrame:
-        """Build the file preview section."""
-        section = QFrame()
+        """Build the file preview section with modern card style."""
+        from ..widgets.acrylic_effects import GlassCard
+        
+        section = GlassCard(elevation=1, hover_lift=False)
         section.setObjectName("previewSection")
         section.setStyleSheet("""
             QFrame#previewSection {
-                background: #f8fafc;
-                border: 1px solid #e2e8f0;
-                border-radius: 8px;
+                background: rgba(248, 250, 252, 0.95);
+                border: 1px solid rgba(0, 0, 0, 0.05);
+                border-radius: 12px;
             }
         """)
-        # 限制 section 的最大宽度，确保不超出板块
-        section.setMaximumWidth(280)
+        # 不设置最大宽度，让卡片自适应父容器
         section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         
         layout = QVBoxLayout(section)
-        # 减小边距以减少留白
-        layout.setContentsMargins(4, 4, 4, 4)
+        # 设置对称的内边距
+        layout.setContentsMargins(1, 1, 1, 1)
         layout.setAlignment(Qt.AlignCenter)
 
         # Use custom preview widget for better centering
         self.preview_widget = PreviewWidget()
-        # 增大预览图大小以填满框
-        self.preview_widget.setMaximumSize(268, 240)
+        # 预览图大小适应容器
+        self.preview_widget.setMaximumSize(270, 240)
         self.preview_widget.setMinimumSize(200, 180)
-        self.preview_widget.setFixedSize(268, 240)
+        self.preview_widget.setFixedSize(270, 240)
         layout.addWidget(self.preview_widget, alignment=Qt.AlignCenter)
 
         return section
 
     def _build_info_section(self) -> QFrame:
-        """Build the file info section."""
-        section = QFrame()
+        """Build the file info section with modern card style."""
+        from ..widgets.acrylic_effects import GlassCard
+        
+        section = GlassCard(elevation=1, hover_lift=False)
         section.setObjectName("infoSection")
         section.setStyleSheet("""
             QFrame#infoSection {
-                background: white;
-                border: 1px solid #e2e8f0;
-                border-radius: 8px;
+                background: rgba(255, 255, 255, 0.95);
+                border: 1px solid rgba(0, 0, 0, 0.05);
+                border-radius: 12px;
             }
         """)
         # 限制 section 的最大宽度
@@ -271,14 +301,16 @@ class DetailPanel(QWidget):
         return section
 
     def _build_tags_section(self) -> QFrame:
-        """Build the tags section."""
-        section = QFrame()
+        """Build the tags section with modern card style."""
+        from ..widgets.acrylic_effects import GlassCard
+        
+        section = GlassCard(elevation=1, hover_lift=False)
         section.setObjectName("tagsSection")
         section.setStyleSheet("""
             QFrame#tagsSection {
-                background: white;
-                border: 1px solid #e2e8f0;
-                border-radius: 8px;
+                background: rgba(255, 255, 255, 0.95);
+                border: 1px solid rgba(0, 0, 0, 0.05);
+                border-radius: 12px;
             }
         """)
         # 限制 section 的最大宽度

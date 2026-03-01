@@ -174,7 +174,7 @@ class FileBrowserView(QWidget):
                 border: none;
             }
             QTreeWidget::item {
-                border-radius: 6px;
+                border-radius: 12px;
                 padding: 6px 8px;
                 margin: 1px 0;
                 min-height: 20px;
@@ -212,7 +212,7 @@ class FileBrowserView(QWidget):
         self._setup_scroll_preload()
 
     def _style_list_widget(self, widget: QListWidget) -> None:
-        """Apply modern styling to list widget."""
+        """Apply modern styling to list widget with 12px radius."""
         widget.setStyleSheet("""
             QListWidget {
                 background: transparent;
@@ -220,7 +220,7 @@ class FileBrowserView(QWidget):
                 outline: none;
             }
             QListWidget::item {
-                border-radius: 8px;
+                border-radius: 12px;
                 padding: 8px 12px;
                 margin: 2px 4px;
                 min-height: 24px;

@@ -35,6 +35,7 @@ from .views.tag_panel import TagPanel
 from ..services.watch_service import WatchService
 from .resources import get_icon, set_theme
 from .resources.styles import get_stylesheet
+from .widgets.acrylic_effects import ModernSidePanel, create_card_widget
 
 
 class MainWindow(QMainWindow):
@@ -230,33 +231,52 @@ class MainWindow(QMainWindow):
         return button
 
     def _build_content_area(self) -> QWidget:
-        """Build the main content area with splitter."""
+        """Build the main content area with modern acrylic side panel."""
         # Create panels
         self.tag_panel = TagPanel()
         self.detail_panel = DetailPanel()
         self.browser_view = FileBrowserView()
 
-        # Create side panel with improved layout
-        side_panel = QWidget()
+        # Create modern side panel with acrylic effect
+        side_panel = ModernSidePanel(theme="light")
         side_panel.setObjectName("sidePanel")
         side_layout = QVBoxLayout()
         side_layout.setContentsMargins(0, 0, 0, 0)
-        side_layout.setSpacing(16)
+        side_layout.setSpacing(12)
         
-        # Add section titles
+        # Add section titles with modern styling
         tag_title = QLabel("🏷️ Tags")
         tag_title.setObjectName("sectionTitle")
+        tag_title.setStyleSheet("""
+            QLabel {
+                font-size: 11px;
+                font-weight: 600;
+                color: #64748b;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+        """)
         side_layout.addWidget(tag_title)
         side_layout.addWidget(self.tag_panel)
         
         detail_title = QLabel("📄 Details")
         detail_title.setObjectName("sectionTitle")
+        detail_title.setStyleSheet("""
+            QLabel {
+                font-size: 11px;
+                font-weight: 600;
+                color: #64748b;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+        """)
         side_layout.addWidget(detail_title)
         side_layout.addWidget(self.detail_panel, 1)
         
         side_panel.setLayout(side_layout)
-        side_panel.setMaximumWidth(320)
-        side_panel.setMinimumWidth(260)
+
+        # side_panel.setMaximumWidth(320)
+        side_panel.setMinimumWidth(400)
 
         # Create main splitter
         splitter = QSplitter(Qt.Horizontal)
@@ -361,6 +381,11 @@ class MainWindow(QMainWindow):
         self._current_theme = theme_id
         set_theme("dark" if theme_id in ("dark", "midnight") else "light")
         self.setStyleSheet(get_stylesheet(theme_id))
+        
+        # Update side panel theme
+        side_panel = self.findChild(ModernSidePanel)
+        if side_panel:
+            side_panel.set_theme("dark" if theme_id in ("dark", "midnight") else "light")
         
         # Update icons for new theme
         for btn in self._icon_buttons.values():

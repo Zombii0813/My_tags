@@ -10,16 +10,57 @@ class ThemeStyles:
 
     # Modern Light Theme - Clean & Minimalist
     LIGHT = """
+    /* 
+     * Modern Design Language - 现代化设计语言
+     * - 统一圆角: 12px
+     * - 阴影层次: 卡片阴影效果
+     * - 毛玻璃效果: 半透明背景
+     */
+    
     /* Main Window */
     QMainWindow {
         background-color: #f8fafc;
         color: #1e293b;
     }
 
+    /* Side Panel - 毛玻璃效果 */
+    #sidePanel {
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid rgba(226, 232, 240, 0.6);
+        border-radius: 16px;
+        padding: 16px;
+    }
+
+    /* 内容卡片样式 - 阴影效果 */
+    #contentCard {
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid rgba(226, 232, 240, 0.5);
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    /* 工具栏容器 */
+    #searchContainer {
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(226, 232, 240, 0.6);
+        border-radius: 10px;
+        padding: 6px 12px;
+    }
+
+    /* Tag Panel */
+    #tagPanel {
+        background: transparent;
+    }
+
+    /* Detail Panel */
+    #detailPanel {
+        background: transparent;
+    }
+
     /* Menu Bar */
     QMenuBar {
-        background: #ffffff;
-        border-bottom: 1px solid #e2e8f0;
+        background: rgba(255, 255, 255, 0.95);
+        border-bottom: 1px solid rgba(226, 232, 240, 0.6);
         padding: 4px 8px;
         font-size: 13px;
     }
@@ -36,16 +77,16 @@ class ThemeStyles:
         background: #e2e8f0;
     }
 
-    /* Menu */
+    /* Menu - 统一12px圆角 */
     QMenu {
         background: #ffffff;
         border: 1px solid #e2e8f0;
-        border-radius: 6px;
+        border-radius: 12px;
         padding: 6px;
     }
     QMenu::item {
         padding: 8px 24px 8px 12px;
-        border-radius: 4px;
+        border-radius: 12px;
         font-size: 13px;
     }
     QMenu::item:selected {
@@ -73,11 +114,11 @@ class ThemeStyles:
         margin: 0 4px;
     }
 
-    /* Tool Button */
+    /* Tool Button - 统一12px圆角 */
     QToolButton {
         background: transparent;
         border: 1px solid transparent;
-        border-radius: 6px;
+        border-radius: 12px;
         padding: 6px;
         min-width: 28px;
         min-height: 28px;
@@ -95,11 +136,11 @@ class ThemeStyles:
         color: #2563eb;
     }
 
-    /* Line Edit (Search) */
+    /* Line Edit (Search) - 统一12px圆角 */
     QLineEdit {
         background: #ffffff;
         border: 1px solid #e2e8f0;
-        border-radius: 8px;
+        border-radius: 12px;
         padding: 8px 12px;
         font-size: 13px;
         min-height: 20px;
@@ -113,11 +154,11 @@ class ThemeStyles:
         color: #94a3b8;
     }
 
-    /* Push Button */
+    /* Push Button - 统一12px圆角 */
     QPushButton {
         background: #f8fafc;
         border: 1px solid #e2e8f0;
-        border-radius: 6px;
+        border-radius: 12px;
         padding: 6px 14px;
         font-size: 12px;
         font-weight: 500;
@@ -162,10 +203,10 @@ class ThemeStyles:
         border-color: #dc2626;
     }
 
-    /* Side Panel */
+    /* Side Panel - 毛玻璃效果侧边栏 */
     #sidePanel {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid rgba(0, 0, 0, 0.06);
         border-radius: 12px;
         padding: 16px;
     }
@@ -180,16 +221,33 @@ class ThemeStyles:
         background: transparent;
     }
 
-    /* List Widget */
+    /* Card Style - 卡片阴影效果 */
+    QFrame#card {
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        border-radius: 12px;
+    }
+
+    /* 信息区块卡片 */
+    QFrame#previewSection,
+    QFrame#infoSection,
+    QFrame#tagsSection,
+    QFrame#actionsFrame {
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        border-radius: 12px;
+    }
+
+    /* List Widget - 统一12px圆角 */
     QListWidget {
         background: #ffffff;
         border: 1px solid #e2e8f0;
-        border-radius: 8px;
+        border-radius: 12px;
         padding: 4px;
         outline: none;
     }
     QListWidget::item {
-        border-radius: 6px;
+        border-radius: 12px;
         padding: 8px 12px;
         margin: 2px 0;
         min-height: 24px;
@@ -206,16 +264,16 @@ class ThemeStyles:
         background: #dbeafe;
     }
 
-    /* Tree Widget */
+    /* Tree Widget - 统一12px圆角 */
     QTreeWidget {
         background: #ffffff;
         border: 1px solid #e2e8f0;
-        border-radius: 8px;
+        border-radius: 12px;
         padding: 4px;
         outline: none;
     }
     QTreeWidget::item {
-        border-radius: 6px;
+        border-radius: 12px;
         padding: 6px 8px;
         margin: 1px 0;
         min-height: 20px;
@@ -251,20 +309,20 @@ class ThemeStyles:
         border: none;
     }
 
-    /* Progress Bar */
+    /* Progress Bar - 统一12px圆角 */
     QProgressBar {
         background: #e2e8f0;
         border: none;
-        border-radius: 4px;
+        border-radius: 12px;
         height: 4px;
         text-align: center;
     }
     QProgressBar::chunk {
         background: #3b82f6;
-        border-radius: 4px;
+        border-radius: 12px;
     }
 
-    /* Check Box */
+    /* Check Box - 统一12px圆角 */
     QCheckBox {
         spacing: 8px;
         font-size: 12px;
@@ -274,7 +332,7 @@ class ThemeStyles:
         width: 16px;
         height: 16px;
         border: 1px solid #cbd5e1;
-        border-radius: 4px;
+        border-radius: 12px;
         background: #ffffff;
     }
     QCheckBox::indicator:checked {
@@ -337,12 +395,12 @@ class ThemeStyles:
         width: 0px;
     }
 
-    /* Tooltip */
+    /* Tooltip - 统一12px圆角 */
     QToolTip {
         background: #1e293b;
         color: #f8fafc;
         border: none;
-        border-radius: 6px;
+        border-radius: 12px;
         padding: 6px 10px;
         font-size: 12px;
     }
@@ -378,6 +436,13 @@ class ThemeStyles:
 
     # Modern Dark Theme - Sleek & Futuristic
     DARK = """
+    /* 
+     * Modern Design Language - 现代化设计语言
+     * - 统一圆角: 12px
+     * - 阴影层次: 卡片阴影效果
+     * - 毛玻璃效果: 深色半透明背景
+     */
+    
     /* Main Window */
     QMainWindow {
         background-color: #0f172a;
@@ -405,16 +470,16 @@ class ThemeStyles:
         background: #475569;
     }
 
-    /* Menu */
+    /* Menu - 统一12px圆角 */
     QMenu {
         background: #1e293b;
         border: 1px solid #334155;
-        border-radius: 8px;
+        border-radius: 12px;
         padding: 6px;
     }
     QMenu::item {
         padding: 8px 24px 8px 12px;
-        border-radius: 4px;
+        border-radius: 12px;
         font-size: 13px;
         color: #cbd5e1;
     }
@@ -443,11 +508,11 @@ class ThemeStyles:
         margin: 0 4px;
     }
 
-    /* Tool Button */
+    /* Tool Button - 统一12px圆角 */
     QToolButton {
         background: transparent;
         border: 1px solid transparent;
-        border-radius: 6px;
+        border-radius: 12px;
         padding: 6px;
         min-width: 28px;
         min-height: 28px;
@@ -470,11 +535,11 @@ class ThemeStyles:
         background: #2563eb;
     }
 
-    /* Line Edit (Search) */
+    /* Line Edit (Search) - 统一12px圆角 */
     QLineEdit {
         background: #0f172a;
         border: 1px solid #334155;
-        border-radius: 8px;
+        border-radius: 12px;
         padding: 8px 12px;
         font-size: 13px;
         min-height: 20px;
@@ -489,11 +554,11 @@ class ThemeStyles:
         color: #64748b;
     }
 
-    /* Push Button */
+    /* Push Button - 统一12px圆角 */
     QPushButton {
         background: #334155;
         border: 1px solid #475569;
-        border-radius: 6px;
+        border-radius: 12px;
         padding: 6px 14px;
         font-size: 12px;
         font-weight: 500;
@@ -538,10 +603,10 @@ class ThemeStyles:
         border-color: #dc2626;
     }
 
-    /* Side Panel */
+    /* Side Panel - 现代化毛玻璃效果 */
     #sidePanel {
-        background: #1e293b;
-        border: 1px solid #334155;
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid rgba(0, 0, 0, 0.05);
         border-radius: 12px;
         padding: 16px;
     }
@@ -556,16 +621,16 @@ class ThemeStyles:
         background: transparent;
     }
 
-    /* List Widget */
+    /* List Widget - 统一12px圆角 */
     QListWidget {
         background: #0f172a;
         border: 1px solid #334155;
-        border-radius: 8px;
+        border-radius: 12px;
         padding: 4px;
         outline: none;
     }
     QListWidget::item {
-        border-radius: 6px;
+        border-radius: 12px;
         padding: 8px 12px;
         margin: 2px 0;
         min-height: 24px;
@@ -583,16 +648,16 @@ class ThemeStyles:
         background: #2563eb;
     }
 
-    /* Tree Widget */
+    /* Tree Widget - 统一12px圆角 */
     QTreeWidget {
         background: #0f172a;
         border: 1px solid #334155;
-        border-radius: 8px;
+        border-radius: 12px;
         padding: 4px;
         outline: none;
     }
     QTreeWidget::item {
-        border-radius: 6px;
+        border-radius: 12px;
         padding: 6px 8px;
         margin: 1px 0;
         min-height: 20px;
@@ -619,20 +684,20 @@ class ThemeStyles:
         border: none;
     }
 
-    /* Progress Bar */
+    /* Progress Bar - 统一12px圆角 */
     QProgressBar {
         background: #334155;
         border: none;
-        border-radius: 4px;
+        border-radius: 12px;
         height: 4px;
         text-align: center;
     }
     QProgressBar::chunk {
         background: #3b82f6;
-        border-radius: 4px;
+        border-radius: 12px;
     }
 
-    /* Check Box */
+    /* Check Box - 统一12px圆角 */
     QCheckBox {
         spacing: 8px;
         font-size: 12px;
@@ -642,7 +707,7 @@ class ThemeStyles:
         width: 16px;
         height: 16px;
         border: 1px solid #475569;
-        border-radius: 4px;
+        border-radius: 12px;
         background: #0f172a;
     }
     QCheckBox::indicator:checked {
@@ -705,12 +770,12 @@ class ThemeStyles:
         width: 0px;
     }
 
-    /* Tooltip */
+    /* Tooltip - 统一12px圆角 */
     QToolTip {
         background: #1e293b;
         color: #f8fafc;
         border: 1px solid #334155;
-        border-radius: 6px;
+        border-radius: 12px;
         padding: 6px 10px;
         font-size: 12px;
     }
@@ -874,10 +939,10 @@ class ThemeStyles:
         color: #ffffff;
     }
 
-    /* Side Panel */
+    /* Side Panel - 现代化毛玻璃效果 */
     #sidePanel {
-        background: rgba(30, 41, 59, 0.6);
-        border: 1px solid rgba(99, 102, 241, 0.2);
+        background: rgba(30, 41, 59, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 12px;
         padding: 16px;
     }

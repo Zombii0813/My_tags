@@ -226,7 +226,7 @@ class TagChip(QWidget):
         super().mousePressEvent(event)
 
     def paintEvent(self, event):
-        """Custom paint with rounded background."""
+        """Custom paint with rounded background - 12px radius."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
@@ -249,10 +249,10 @@ class TagChip(QWidget):
         painter.scale(self._scale, self._scale)
         painter.translate(-self.width() / 2, -self.height() / 2)
 
-        # Draw rounded rectangle background
+        # Draw rounded rectangle background with 12px radius
         path = QPainterPath()
         rect = self.rect().adjusted(1, 1, -1, -1)
-        path.addRoundedRect(rect, 14, 14)
+        path.addRoundedRect(rect, 12, 12)
         
         painter.fillPath(path, bg_color)
 

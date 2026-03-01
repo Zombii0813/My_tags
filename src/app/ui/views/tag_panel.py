@@ -51,7 +51,7 @@ class TagPanel(QWidget):
         self.search_input.textChanged.connect(self._on_search_changed)
         layout.addWidget(self.search_input)
 
-        # Tag list with modern styling
+        # Tag list with modern styling - 12px radius
         self.list_widget = QListWidget()
         self.list_widget.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.list_widget.setSpacing(4)
@@ -61,7 +61,7 @@ class TagPanel(QWidget):
                 border: none;
             }
             QListWidget::item {
-                border-radius: 6px;
+                border-radius: 12px;
                 padding: 8px 10px;
                 margin: 2px 0;
                 min-height: 20px;
