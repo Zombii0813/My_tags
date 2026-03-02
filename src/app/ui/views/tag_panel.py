@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
 )
 
 from ...db.models import Tag
-from ..widgets.tag_chip import TagChip
 
 
 class TagPanel(QWidget):
@@ -47,34 +46,19 @@ class TagPanel(QWidget):
 
         # Search/filter
         self.search_input = QLineEdit()
+        self.search_input.setObjectName("tagSearchInput")
         self.search_input.setPlaceholderText("🔍 Filter tags...")
         self.search_input.textChanged.connect(self._on_search_changed)
         layout.addWidget(self.search_input)
 
         # Tag list with modern styling - 12px radius
         self.list_widget = QListWidget()
+        self.list_widget.setObjectName("tagListWidget")
         self.list_widget.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.list_widget.setSpacing(4)
-        self.list_widget.setStyleSheet("""
-            QListWidget {
-                background: transparent;
-                border: none;
-            }
-            QListWidget::item {
-                border-radius: 12px;
-                padding: 8px 10px;
-                margin: 2px 0;
-                min-height: 20px;
-            }
-            QListWidget::item:selected {
-                background: #eff6ff;
-                color: #1e293b;
-                border: 1px solid #bfdbfe;
-            }
-            QListWidget::item:hover {
-                background: #f8fafc;
-            }
-        """)
+        
+        # Styles are now applied via application-wide theme system
+            
         layout.addWidget(self.list_widget, 1)
 
         # Actions section
@@ -130,6 +114,7 @@ class TagPanel(QWidget):
 
         # Match mode checkbox
         self.match_all_checkbox = QCheckBox("Match all selected tags")
+        self.match_all_checkbox.setObjectName("matchAllCheckbox")
         self.match_all_checkbox.setChecked(True)
         self.match_all_checkbox.setToolTip("Require all selected tags (AND) vs any (OR)")
         actions_layout.addWidget(self.match_all_checkbox)

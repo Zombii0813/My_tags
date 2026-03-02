@@ -46,14 +46,7 @@ class AcrylicPanel(QFrame):
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WA_StyledBackground, False)
         
-        # Set fixed corner radius
-        self.setStyleSheet(f"""
-            QFrame#acrylicPanel {{
-                background-color: transparent;
-                border-radius: 12px;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-            }}
-        """)
+        # Styles are now applied via application-wide theme system
         
     def _setup_effects(self):
         """Setup visual effects."""
@@ -117,14 +110,7 @@ class GlassCard(QFrame):
         self.setObjectName("glassCard")
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         
-        # Base styles for glass effect
-        self.setStyleSheet("""
-            QFrame#glassCard {
-                background-color: rgba(255, 255, 255, 0.9);
-                border-radius: 12px;
-                border: 1px solid rgba(0, 0, 0, 0.05);
-            }
-        """)
+        # Styles are now applied via application-wide theme system
         
     def _setup_shadow(self):
         """Setup shadow based on elevation."""
@@ -192,22 +178,7 @@ class ModernSidePanel(QFrame):
         """Setup the panel UI."""
         self.setObjectName("sidePanel")
         
-        # Theme-based styling
-        if self._theme == "dark":
-            bg_color = "rgba(30, 41, 59, 0.85)"
-            border_color = "rgba(255, 255, 255, 0.1)"
-        else:
-            bg_color = "rgba(255, 255, 255, 0.95)"
-            border_color = "rgba(0, 0, 0, 0.05)"
-        
-        self.setStyleSheet(f"""
-            QFrame#sidePanel {{
-                background-color: {bg_color};
-                border-radius: 12px;
-                border: 1px solid {border_color};
-                padding: 2px;
-            }}
-        """)
+        # Styles are now applied via application-wide theme system
         
     def _setup_shadow(self):
         """Setup shadow effect."""
@@ -241,15 +212,7 @@ def create_card_widget(
     
     if title:
         title_label = QLabel(title)
-        title_label.setStyleSheet("""
-            QLabel {
-                font-size: 11px;
-                font-weight: 600;
-                color: #64748b;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-        """)
+        title_label.setObjectName("sectionTitle")
         layout.addWidget(title_label)
     
     content_layout = QVBoxLayout()

@@ -17,12 +17,10 @@ from PySide6.QtWidgets import (
     QToolBar,
     QToolButton,
     QButtonGroup,
-    QStyle,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QMenu,
-    QFrame,
 )
 from PySide6.QtGui import QDesktopServices, QAction
 
@@ -102,17 +100,18 @@ class MainWindow(QMainWindow):
         toolbar.setIconSize(QSize(20, 20))
 
         # Left side: Search with icon
-        search_container = QFrame()
+        search_container = QWidget()
         search_container.setObjectName("searchContainer")
         search_layout = QHBoxLayout(search_container)
         search_layout.setContentsMargins(0, 0, 0, 0)
         search_layout.setSpacing(8)
 
         search_icon = QLabel("🔍")
-        search_icon.setStyleSheet("font-size: 14px;")
+        search_icon.setObjectName("searchIcon")
         search_layout.addWidget(search_icon)
 
         self.search_input = QLineEdit()
+        self.search_input.setObjectName("searchInput")
         self.search_input.setPlaceholderText("Search files, tags...")
         self.search_input.setMinimumWidth(280)
         self.search_input.returnPressed.connect(self._on_search)
@@ -247,36 +246,18 @@ class MainWindow(QMainWindow):
         # Add section titles with modern styling
         tag_title = QLabel("🏷️ Tags")
         tag_title.setObjectName("sectionTitle")
-        tag_title.setStyleSheet("""
-            QLabel {
-                font-size: 11px;
-                font-weight: 600;
-                color: #64748b;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-        """)
         side_layout.addWidget(tag_title)
         side_layout.addWidget(self.tag_panel)
         
         detail_title = QLabel("📄 Details")
         detail_title.setObjectName("sectionTitle")
-        detail_title.setStyleSheet("""
-            QLabel {
-                font-size: 11px;
-                font-weight: 600;
-                color: #64748b;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-        """)
         side_layout.addWidget(detail_title)
         side_layout.addWidget(self.detail_panel, 1)
         
         side_panel.setLayout(side_layout)
 
         # side_panel.setMaximumWidth(320)
-        side_panel.setMinimumWidth(400)
+        side_panel.setMinimumWidth(360)
 
         # Create main splitter
         splitter = QSplitter(Qt.Horizontal)
@@ -312,6 +293,7 @@ class MainWindow(QMainWindow):
 
         # Progress bar (hidden by default)
         self.progress = QProgressBar()
+        self.progress.setObjectName("statusProgressBar")
         self.progress.setVisible(False)
         self.progress.setFixedWidth(120)
         self.progress.setTextVisible(False)
@@ -319,23 +301,23 @@ class MainWindow(QMainWindow):
 
         # Memory cache stats label
         self.cache_stats_label = QLabel("")
-        self.cache_stats_label.setStyleSheet("padding: 0 8px; color: #64748b; font-size: 11px;")
+        self.cache_stats_label.setObjectName("cacheStatsLabel")
         self.status_bar.addPermanentWidget(self.cache_stats_label)
 
         # Selection counter
         self.selection_label = QLabel("0 items selected")
-        self.selection_label.setStyleSheet("padding: 0 8px;")
+        self.selection_label.setObjectName("selectionLabel")
         self.status_bar.addPermanentWidget(self.selection_label)
 
         # Workspace indicator
         self.workspace_label = QLabel("No workspace")
-        self.workspace_label.setStyleSheet("padding: 0 8px; color: #64748b;")
+        self.workspace_label.setObjectName("workspaceLabel")
         self.status_bar.addWidget(self.workspace_label)
         
         # Setup cache stats timer
         self._cache_stats_timer = QTimer(self)
         self._cache_stats_timer.timeout.connect(self._update_cache_stats)
-        self._cache_stats_timer.start(2000)  # 每2秒更新一次
+        self._cache_stats_timer.start(2000)  # Update every 2 seconds
 
     def _build_menu(self) -> None:
         """Build the menu bar."""
@@ -346,20 +328,11 @@ class MainWindow(QMainWindow):
         view_menu = menu_bar.addMenu("View")
         tools_menu = menu_bar.addMenu("Tools")
 
-        # Theme submenu
+        # Theme submenu - dynamically populated from available themes
         theme_menu = QMenu("Theme", self)
         view_menu.addMenu(theme_menu)
-
-        theme_light = QAction("☀️ Light", self)
-        theme_light.triggered.connect(lambda: self._apply_theme_preset("light"))
-        theme_dark = QAction("🌙 Dark", self)
-        theme_dark.triggered.connect(lambda: self._apply_theme_preset("dark"))
-        theme_midnight = QAction("🌌 Midnight", self)
-        theme_midnight.triggered.connect(lambda: self._apply_theme_preset("midnight"))
-
-        theme_menu.addAction(theme_light)
-        theme_menu.addAction(theme_dark)
-        theme_menu.addAction(theme_midnight)
+        self._theme_actions: list[QAction] = []
+        self._build_theme_menu(theme_menu)
 
         # File menu actions
         file_menu.addAction(QAction("📁 Open Workspace", self, triggered=self._on_choose_workspace))
@@ -375,6 +348,33 @@ class MainWindow(QMainWindow):
         # About
         about_menu = menu_bar.addMenu("Help")
         about_menu.addAction(QAction("ℹ️ About", self))
+
+    def _build_theme_menu(self, theme_menu: QMenu) -> None:
+        """Build dynamic theme menu from available QSS files."""
+        from .resources.styles import get_available_themes
+        
+        # Clear existing actions
+        for action in self._theme_actions:
+            theme_menu.removeAction(action)
+        self._theme_actions.clear()
+        
+        # Get available themes
+        themes = get_available_themes()
+        
+        # Theme name mapping for display
+        theme_display_names = {
+            "light": "☀️ Light",
+            "dark": "🌙 Dark",
+            "midnight": "🌌 Midnight",
+        }
+        
+        # Create action for each theme
+        for theme_name in themes:
+            display_name = theme_display_names.get(theme_name, theme_name.capitalize())
+            action = QAction(display_name, self)
+            action.triggered.connect(lambda checked, t=theme_name: self._apply_theme_preset(t))
+            theme_menu.addAction(action)
+            self._theme_actions.append(action)
 
     def _apply_theme_preset(self, theme_id: str) -> None:
         """Apply the selected theme preset."""
@@ -813,7 +813,7 @@ class MainWindow(QMainWindow):
         self._icon_buttons["sort_size"].setChecked(sort_by == "size")
 
     def _update_cache_stats(self) -> None:
-        """更新缩略图缓存统计信息"""
+        """Update thumbnail cache statistics"""
         thumb_service = self.browser_view._thumb_service
         stats = thumb_service.cache_stats
         self.cache_stats_label.setText(
@@ -821,7 +821,7 @@ class MainWindow(QMainWindow):
         )
     
     def _on_clean_thumbnail_cache(self) -> None:
-        """清理缩略图缓存"""
+        """Clean thumbnail cache"""
         from PySide6.QtWidgets import QMessageBox
         
         thumb_service = self.browser_view._thumb_service

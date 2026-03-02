@@ -168,26 +168,6 @@ class FileBrowserView(QWidget):
         self.tree_widget = QTreeWidget()
         self.tree_widget.setHeaderHidden(True)
         self.tree_widget.itemSelectionChanged.connect(self._on_tree_selection_changed)
-        self.tree_widget.setStyleSheet("""
-            QTreeWidget {
-                background: transparent;
-                border: none;
-            }
-            QTreeWidget::item {
-                border-radius: 12px;
-                padding: 6px 8px;
-                margin: 1px 0;
-                min-height: 20px;
-            }
-            QTreeWidget::item:selected {
-                background: #eff6ff;
-                color: #1e293b;
-                border: 1px solid #bfdbfe;
-            }
-            QTreeWidget::item:hover {
-                background: #f8fafc;
-            }
-        """)
 
         # Folder splitter with tree and file list
         self.folder_splitter = QSplitter(Qt.Horizontal)
@@ -212,31 +192,9 @@ class FileBrowserView(QWidget):
         self._setup_scroll_preload()
 
     def _style_list_widget(self, widget: QListWidget) -> None:
-        """Apply modern styling to list widget with 12px radius."""
-        widget.setStyleSheet("""
-            QListWidget {
-                background: transparent;
-                border: none;
-                outline: none;
-            }
-            QListWidget::item {
-                border-radius: 12px;
-                padding: 8px 12px;
-                margin: 2px 4px;
-                min-height: 24px;
-            }
-            QListWidget::item:selected {
-                background: #eff6ff;
-                color: #1e293b;
-                border: 1px solid #bfdbfe;
-            }
-            QListWidget::item:hover {
-                background: #f8fafc;
-            }
-            QListWidget::item:selected:hover {
-                background: #dbeafe;
-            }
-        """)
+        """List widget styling is now handled by application-wide theme."""
+        # Styles are applied via main window's theme system
+        pass
 
     def set_files(self, files: list[File], root: Path | None = None) -> None:
         """Set the list of files to display."""
@@ -613,28 +571,7 @@ class FileBrowserView(QWidget):
         widget.setCurrentItem(item)
         
         menu = QMenu(self)
-        menu.setStyleSheet("""
-            QMenu {
-                background: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-radius: 8px;
-                padding: 6px;
-            }
-            QMenu::item {
-                padding: 8px 24px 8px 12px;
-                border-radius: 4px;
-                font-size: 13px;
-            }
-            QMenu::item:selected {
-                background: #eff6ff;
-                color: #2563eb;
-            }
-            QMenu::separator {
-                height: 1px;
-                background: #e2e8f0;
-                margin: 6px 12px;
-            }
-        """)
+        # Menu styles are now loaded from QSS file via application-wide stylesheet
         
         open_file = menu.addAction("📂 Open File")
         open_folder = menu.addAction("📁 Open Folder")

@@ -1,5 +1,31 @@
 # 更新日志
 
+## v0.0.6 (2026-03-02)
+
+### UI 样式重构
+
+#### QSS 样式文件化
+- 将所有内联样式从 Python 代码中分离到独立的 QSS 文件
+- 新增 `src/app/ui/resources/themes/` 目录存放主题样式：
+  - `light.qss` - 浅色主题
+  - `dark.qss` - 深色主题
+- 支持动态主题切换，主题菜单自动扫描可用主题文件
+- 统一通过 `get_stylesheet()` 函数加载主题样式
+
+#### 组件样式清理
+- **browser_view.py**: 移除 `QTreeWidget`、`QListWidget`、`QMenu` 的内联样式
+- **detail_panel.py**: 移除滚动条、预览区、信息区的内联样式
+- **tag_panel.py**: 移除标签列表、按钮的内联样式
+- **acrylic_effects.py**: 简化 GlassCard 和 ModernSidePanel 的样式定义
+- **tag_chip.py**: 保留动态颜色计算（运行时确定），其余样式移至 QSS
+
+#### 项目结构优化
+- 删除废弃的 `styles/` 子目录和组件级 QSS 文件
+- 简化 `styles.py`，移除组件样式注册机制
+- 新增 `get_available_themes()` 函数动态获取可用主题列表
+
+---
+
 ## v0.0.5 (2026-02-28)
 
 ### 搜索体验优化

@@ -151,27 +151,12 @@ class TagChip(QWidget):
         layout.setSpacing(4)
 
         self.label = QLabel(self._name)
-        self.label.setStyleSheet("""
-            QLabel {
-                background: transparent;
-                border: none;
-                font-size: 12px;
-                font-weight: 500;
-            }
-        """)
+        self.label.setObjectName("tagChipLabel")
         layout.addWidget(self.label)
 
         # Always create close button for removable chips, but hide initially
         self.close_btn = QLabel("✕")
-        self.close_btn.setStyleSheet("""
-            QLabel {
-                background: transparent;
-                border: none;
-                font-size: 20px;
-                font-weight: 500;
-                padding: 0 2px;
-            }
-        """)
+        self.close_btn.setObjectName("tagChipCloseBtn")
         self.close_btn.setVisible(False)
         layout.addWidget(self.close_btn)
 

@@ -13,6 +13,11 @@ from PySide6.QtWidgets import (
     QHBoxLayout, QFrame, QScrollArea, QGridLayout
 )
 
+from ...config import load_config
+from ...db.models import File
+from ...services.thumbnail_service import ThumbnailService
+from ..widgets.tag_chip import TagChip, TagChipContainer
+
 
 class PreviewWidget(QWidget):
     """Custom widget to display a centered pixmap."""
@@ -22,7 +27,7 @@ class PreviewWidget(QWidget):
         self._pixmap: QPixmap | None = None
         self._text: str = "No preview"
         self.setMinimumSize(200, 180)
-        # 使用 Expanding 策略让预览图自适应容器
+        # Use Expanding policy for adaptive container
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         
     def setPixmap(self, pixmap: QPixmap | None) -> None:
@@ -39,11 +44,11 @@ class PreviewWidget(QWidget):
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
         
         if self._pixmap is not None and not self._pixmap.isNull():
-            # 按原比例缩放图片，使其在区域内最大化显示
+            # Scale image proportionally to maximize display area
             available_width = self.width()
             available_height = self.height()
             
-            # 计算缩放后的尺寸，保持比例
+            # Calculate scaled dimensions maintaining aspect ratio
             scaled = self._pixmap.scaled(
                 available_width,
                 available_height,
@@ -55,7 +60,7 @@ class PreviewWidget(QWidget):
             y = (available_height - scaled.height()) // 2
             painter.drawPixmap(x, y, scaled)
         else:
-            # 填充背景
+            # Fill background
             painter.fillRect(self.rect(), QColor("#f8fafc"))
             # Draw text in center
             painter.setPen(QColor("#64748b"))
@@ -65,11 +70,6 @@ class PreviewWidget(QWidget):
             painter.drawText(self.rect(), Qt.AlignCenter, self._text)
         
         painter.end()
-
-from ...config import load_config
-from ...db.models import File
-from ...services.thumbnail_service import ThumbnailService
-from ..widgets.tag_chip import TagChip, TagChipContainer
 
 
 class DetailPanel(QWidget):
@@ -97,37 +97,13 @@ class DetailPanel(QWidget):
         """Build the modern detail panel UI."""
         # Main scroll area for content
         scroll = QScrollArea()
+        scroll.setObjectName("detailScrollArea")
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
-        scroll.setStyleSheet("""
-            QScrollArea {
-                border: none;
-                background: transparent;
-            }
-            /* 滚动条区域透明 */
-            /*
-            QScrollArea > QWidget > QWidget {
-                background: transparent;
-            }
-            */
-            /* 垂直滚动条样式 */
-            QScrollBar:vertical {
-                background: transparent;
-                width: 8px;
-                margin: 0px;
-            }
-            
-            QScrollBar::handle:vertical {
-                background: rgba(128, 128, 128, 0.5);
-                min-height: 30px;
-                border-radius: 4px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background: rgba(128, 128, 128, 0.7);
-            }   
-        """)
+        # Styles are now applied via application-wide theme system
+        # No need to set individual stylesheets
         
         # Container widget
         container = QWidget()
@@ -150,13 +126,7 @@ class DetailPanel(QWidget):
 
         # Selection info
         self.selection_label = QLabel("")
-        self.selection_label.setStyleSheet("""
-            QLabel {
-                color: #64748b;
-                font-size: 12px;
-                font-style: italic;
-            }
-        """)
+        self.selection_label.setObjectName("selectionInfo")
         self.selection_label.setAlignment(Qt.AlignCenter)
         self.main_layout.addWidget(self.selection_label)
 
@@ -174,24 +144,17 @@ class DetailPanel(QWidget):
         
         section = GlassCard(elevation=1, hover_lift=False)
         section.setObjectName("previewSection")
-        section.setStyleSheet("""
-            QFrame#previewSection {
-                background: rgba(248, 250, 252, 0.95);
-                border: 1px solid rgba(0, 0, 0, 0.05);
-                border-radius: 12px;
-            }
-        """)
-        # 不设置最大宽度，让卡片自适应父容器
+        # No max width, let card adapt to parent container
         section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         
         layout = QVBoxLayout(section)
-        # 设置对称的内边距
+        # Set symmetric padding
         layout.setContentsMargins(1, 1, 1, 1)
         layout.setAlignment(Qt.AlignCenter)
 
         # Use custom preview widget for better centering
         self.preview_widget = PreviewWidget()
-        # 预览图大小适应容器
+        # Preview size adapts to container
         self.preview_widget.setMaximumSize(270, 240)
         self.preview_widget.setMinimumSize(200, 180)
         self.preview_widget.setFixedSize(270, 240)
@@ -205,14 +168,7 @@ class DetailPanel(QWidget):
         
         section = GlassCard(elevation=1, hover_lift=False)
         section.setObjectName("infoSection")
-        section.setStyleSheet("""
-            QFrame#infoSection {
-                background: rgba(255, 255, 255, 0.95);
-                border: 1px solid rgba(0, 0, 0, 0.05);
-                border-radius: 12px;
-            }
-        """)
-        # 限制 section 的最大宽度
+        # Limit section max width
         section.setMaximumWidth(300)
         section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         
@@ -222,37 +178,24 @@ class DetailPanel(QWidget):
 
         # File name
         self.name_label = QLabel("Select a file")
+        self.name_label.setObjectName("fileNameLabel")
         self.name_label.setWordWrap(True)
         self.name_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-        # 确保文本在板块宽度内换行
+        # Ensure text wraps within section width
         self.name_label.setMinimumWidth(100)
         self.name_label.setMaximumWidth(300)
-        # 允许长字符串在任意位置换行
+        # Allow long strings to wrap at any position
         self.name_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.name_label.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                font-weight: 600;
-                color: #1e293b;
-                line-height: 1.4;
-            }
-        """)
         layout.addWidget(self.name_label)
 
         # File path
         self.path_label = QLabel("")
+        self.path_label.setObjectName("filePathLabel")
         self.path_label.setWordWrap(True)
         self.path_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
         self.path_label.setMinimumWidth(100)
         self.path_label.setMaximumWidth(300)
         self.path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.path_label.setStyleSheet("""
-            QLabel {
-                font-size: 11px;
-                color: #64748b;
-                line-height: 1.4;
-            }
-        """)
         layout.addWidget(self.path_label)
 
         # Metadata grid
@@ -265,9 +208,9 @@ class DetailPanel(QWidget):
 
         # Type
         type_title = QLabel("Type")
-        type_title.setStyleSheet(self._meta_title_style())
+        type_title.setObjectName("metaTitle")
         self.type_value = QLabel("-")
-        self.type_value.setStyleSheet(self._meta_value_style())
+        self.type_value.setObjectName("metaValue")
         self.type_value.setWordWrap(True)
         self.type_value.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.type_value.setMinimumWidth(50)
@@ -276,9 +219,9 @@ class DetailPanel(QWidget):
 
         # Size
         size_title = QLabel("Size")
-        size_title.setStyleSheet(self._meta_title_style())
+        size_title.setObjectName("metaTitle")
         self.size_value = QLabel("-")
-        self.size_value.setStyleSheet(self._meta_value_style())
+        self.size_value.setObjectName("metaValue")
         self.size_value.setWordWrap(True)
         self.size_value.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.size_value.setMinimumWidth(50)
@@ -287,9 +230,9 @@ class DetailPanel(QWidget):
 
         # Modified
         modified_title = QLabel("Modified")
-        modified_title.setStyleSheet(self._meta_title_style())
+        modified_title.setObjectName("metaTitle")
         self.modified_value = QLabel("-")
-        self.modified_value.setStyleSheet(self._meta_value_style())
+        self.modified_value.setObjectName("metaValue")
         self.modified_value.setWordWrap(True)
         self.modified_value.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.modified_value.setMinimumWidth(50)
@@ -306,14 +249,7 @@ class DetailPanel(QWidget):
         
         section = GlassCard(elevation=1, hover_lift=False)
         section.setObjectName("tagsSection")
-        section.setStyleSheet("""
-            QFrame#tagsSection {
-                background: rgba(255, 255, 255, 0.95);
-                border: 1px solid rgba(0, 0, 0, 0.05);
-                border-radius: 12px;
-            }
-        """)
-        # 限制 section 的最大宽度
+        # Limit section max width
         section.setMaximumWidth(300)
         section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         
@@ -323,15 +259,7 @@ class DetailPanel(QWidget):
 
         # Section title
         tags_title = QLabel("🏷️ Tags")
-        tags_title.setStyleSheet("""
-            QLabel {
-                font-size: 12px;
-                font-weight: 600;
-                color: #64748b;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-        """)
+        tags_title.setObjectName("sectionTitle")
         layout.addWidget(tags_title)
 
         # Tags container
@@ -340,25 +268,6 @@ class DetailPanel(QWidget):
         layout.addWidget(self.tags_container)
 
         return section
-
-    def _meta_title_style(self) -> str:
-        return """
-            QLabel {
-                font-size: 11px;
-                font-weight: 500;
-                color: #94a3b8;
-                min-width: 50px;
-            }
-        """
-
-    def _meta_value_style(self) -> str:
-        return """
-            QLabel {
-                font-size: 12px;
-                color: #334155;
-                font-weight: 500;
-            }
-        """
 
     def set_file(
         self, 
@@ -396,11 +305,11 @@ class DetailPanel(QWidget):
 
     def _update_display(self, file_row: File, tags: list[str]) -> None:
         """Update display with file information."""
-        # Update basic info - 对长字符串进行特殊处理以便换行
+        # Update basic info - handle long strings for wrapping
         name = str(file_row.name)
         path = str(file_row.path)
         
-        # 插入零宽空格 (\u200B) 帮助长字符串在任意位置换行
+        # Insert zero-width space (\u200B) to help long strings wrap at any position
         self.name_label.setText(self._prepare_text_for_wrapping(name, max_chars=20))
         self.path_label.setText(self._prepare_text_for_wrapping(path, max_chars=25))
         
@@ -479,17 +388,17 @@ class DetailPanel(QWidget):
 
     def _prepare_text_for_wrapping(self, text: str, max_chars: int = 20) -> str:
         """
-        在长字符串中插入零宽空格 (\u200B) 以帮助换行。
-        这样可以避免超长单词导致布局超出边界。
+        Insert zero-width space (\u200B) into long strings to help wrapping.
+        This prevents ultra-long words from causing layout overflow.
         """
         if len(text) <= max_chars:
             return text
         
-        # 在路径分隔符后插入零宽空格帮助换行
+        # Insert zero-width space after path separators to help wrapping
         text = text.replace('/', '/\u200B')
         text = text.replace('\\', '\\\u200B')
         
-        # 对于超长单词（超过 max_chars 个字符无分隔符），强制分割
+        # For ultra-long words (over max_chars without separators), force split
         result = []
         current = ""
         for char in text:
@@ -499,7 +408,7 @@ class DetailPanel(QWidget):
             current += char
             if len(current) >= max_chars and char not in '\u200B':
                 result.append(current)
-                result.append('\u200B')  # 插入零宽空格允许换行
+                result.append('\u200B')  # Insert zero-width space to allow wrapping
                 current = ""
         result.append(current)
         
